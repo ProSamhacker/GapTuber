@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { scans } from "@/db/schema";
-import { getUserByEmail } from "@/db/queries";
+import { getUserByEmail, getChannelsByUserId } from "@/db/queries";
 import type { ScanResult, ScanAnalytics } from "@/db/schema";
 
 // Node.js runtime (not edge) — required so we can self-fetch /api/auth/session
@@ -83,6 +83,15 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        const userChannels = await getChannelsByUserId(user.id);
+        if (userChannels.length === 0) {
+            return NextResponse.json(
+                { success: false, error: "No channel found. Please complete AuraIQ onboarding first." },
+                { status: 400, headers: cors }
+            );
+        }
+        const targetChannelId = userChannels[0].id;
+
         // ── Parse body ──────────────────────────────────────────────────────────────
         const body = await req.json() as {
             keyword: string;
@@ -102,6 +111,7 @@ export async function POST(req: NextRequest) {
         // ── Insert ──────────────────────────────────────────────────────────────────
         const [saved] = await db.insert(scans).values({
             userId: user.id,
+            channelId: targetChannelId,
             keyword: body.keyword,
             competitors: body.competitors ?? [],
             rawData: body.rawData ?? {},
