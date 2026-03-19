@@ -153,27 +153,54 @@ COMPUTED DATA SIGNALS`
     );
 
     // ── Groq AI Analysis ─────────────────────────────────────────────────────
-    const groq = createGroq({ apiKey: process.env.GROQ_API_KEY! });
+    const keys = [
+        process.env.GROQ_API_KEY,
+        process.env.GROQ_API_KEY_2,
+        process.env.GROQ_API_KEY_3
+    ].filter(Boolean) as string[];
 
-    let rawText: string;
-    try {
-        const result = await generateText({
-            model: groq("llama-3.3-70b-versatile"),
-            messages: [
-                {
-                    role: "system",
-                    content: "You are a JSON API. Respond only with valid JSON matching the exact schema provided. No markdown, no explanation.",
-                },
-                { role: "user", content: enrichedPrompt },
-            ],
-            maxOutputTokens: 2500,
-            temperature: 0.2,
-        });
-        rawText = result.text;
-    } catch (aiErr) {
-        console.error("[Channel AI Error]", aiErr);
+    if (keys.length === 0) {
         return NextResponse.json(
-            { error: "AI service unavailable. Please try again." },
+            { error: "Groq API keys not configured" },
+            { status: 503, headers: cors }
+        );
+    }
+
+
+    let rawText: string = "";
+    let success = false;
+    let lastError: any = null;
+
+    const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
+
+    for (const activeKey of shuffledKeys) {
+        try {
+            const groq = createGroq({ apiKey: activeKey });
+            const result = await generateText({
+                model: groq("llama-3.3-70b-versatile"),
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are a JSON API. Respond only with valid JSON matching the exact schema provided. No markdown, no explanation.",
+                    },
+                    { role: "user", content: enrichedPrompt },
+                ],
+                maxOutputTokens: 2500,
+                temperature: 0.2,
+            });
+            rawText = result.text;
+            success = true;
+            break;
+        } catch (aiErr: any) {
+            lastError = aiErr;
+            console.warn("[Key Rotation ChannelAnalyze] Key failed, trying next...");
+        }
+    }
+
+    if (!success) {
+        console.error("[Channel AI Error] All keys exhausted.", lastError);
+        return NextResponse.json(
+            { error: "AI service temporarily unavailable. Rate limits exceeded." },
             { status: 503, headers: cors }
         );
     }

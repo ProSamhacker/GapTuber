@@ -25,7 +25,6 @@ export default function Footer() {
                         <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
                         <Link href="#why-auraiq" className="hover:text-white transition-colors">Why AuraIQ</Link>
                         <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
-                        <Link href="#waitlist" className="hover:text-white transition-colors">Join Waitlist</Link>
                         <Link href="mailto:hello@aurionstack.dev" className="hover:text-white transition-colors">Contact</Link>
                     </div>
                 </div>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { auth } from "@/auth";
 
 const FEATURES = [
     { icon: "📊", label: "Channel Analysis" },
@@ -9,7 +10,8 @@ const FEATURES = [
     { icon: "📅", label: "Upload Scheduler" },
 ];
 
-export default function Hero() {
+export default async function Hero() {
+    const session = await auth();
     return (
         <section className="relative pt-24 sm:pt-32 pb-16 sm:pb-28 px-4 overflow-hidden bg-[#0a0a0f]">
             {/* Animated mesh gradient background */}
@@ -60,18 +62,28 @@ export default function Hero() {
 
                 {/* CTA Buttons */}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-                    <Link
-                        href="#waitlist"
-                        className="inline-flex items-center gap-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-base hover:opacity-90 transition-all hover:shadow-xl hover:shadow-violet-500/30 active:scale-95 glow-purple"
-                    >
-                        <span className="w-2 h-2 bg-white/60 rounded-full radar-dot" />
-                        Join the Waitlist — Free
-                    </Link>
+                    {session ? (
+                        <Link
+                            href="/dashboard"
+                            className="inline-flex items-center gap-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-base hover:opacity-90 transition-all hover:shadow-xl hover:shadow-violet-500/30 active:scale-95 glow-purple"
+                        >
+                            <span className="w-2 h-2 bg-white/60 rounded-full radar-dot" />
+                            Go to Dashboard &rarr;
+                        </Link>
+                    ) : (
+                        <Link
+                            href="/auth/signin"
+                            className="inline-flex items-center gap-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-base hover:opacity-90 transition-all hover:shadow-xl hover:shadow-violet-500/30 active:scale-95 glow-purple"
+                        >
+                            <span className="w-2 h-2 bg-white/60 rounded-full radar-dot" />
+                            Get Started — Free
+                        </Link>
+                    )}
                     <Link
                         href="#how-it-works"
                         className="inline-flex items-center gap-2 glass border border-white/10 text-gray-300 px-8 py-4 rounded-xl font-medium text-base hover:border-violet-500/40 hover:text-white transition-all"
                     >
-                        See How It Works →
+                        See How It Works &rarr;
                     </Link>
                 </div>
 

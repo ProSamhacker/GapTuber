@@ -821,3 +821,158 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
 
     return candidates;
 }
+
+// ─── Market Intelligence Engine ──────────────────────────────────────────────
+
+export interface MarketIntelligence {
+    demandScore: number;           // 0-100: overall demand in this topic
+    saturationLevel: "Low" | "Medium" | "High" | "Very High";
+    growthTrajectory: "accelerating" | "stable" | "decelerating";
+    difficultyRating: "Easy" | "Moderate" | "Hard" | "Very Hard";
+    estimatedFirstYearViews: { low: number; mid: number; high: number };
+    topCompetitorChannels: number;
+    avgCompetitorViews: number;
+    avgCompetitorSubs: number;
+    contentGapCount: number;
+    bestSubNiches: string[];
+    audiencePainPoints: string[];
+    trendingKeywords: string[];
+    uploadFrequencyBenchmark: number; // videos per week in this niche
+    revenueEstimate: { low: number; mid: number; high: number };
+    velocityInsight: string;
+    saturationInsight: string;
+    trendInsight: string;
+    competitionInsight: string;
+    overallVerdict: string;
+}
+
+/**
+ * Comprehensive market intelligence for a topic/niche.
+ * Combines all scoring algorithms to provide data-driven channel creation advice.
+ */
+export function computeMarketIntelligence(
+    topic: string,
+    videos: VideoData[],
+    searchResults: SearchResult[],
+    comments: CommentData[] = []
+): MarketIntelligence {
+    const velocity = computeVelocityScore(videos);
+    const saturation = computeSaturationScore(searchResults);
+    const frustration = computeFrustrationScore(comments);
+    const engagement = computeEngagementScore(videos);
+    const trend = computeTrendMomentum(videos);
+    const competition = computeCompetitionScore(searchResults);
+    const schedule = computeOptimalUploadSchedule(videos);
+
+    // Demand = weighted combination of velocity + engagement + trend momentum
+    const demandScore = Math.min(100, Math.round(
+        velocity.score * 3 +      // 30% weight (how many views/day)
+        engagement.score * 2 +     // 20% weight (audience engagement)
+        trend.score * 2.5 +        // 25% weight (is demand growing?)
+        frustration.score * 1.5 +  // 15% weight (unmet needs = demand signal)
+        (10 - saturation.score) * 1 // 10% weight (inverse: less saturation = more room)
+    ));
+
+    // Content gap count estimation
+    const contentGapCount = frustration.painPoints.length + 
+        (saturation.score > 6 ? 3 : saturation.score > 3 ? 5 : 8);
+
+    // Competitor metrics
+    const topCompetitorChannels = new Set(searchResults.map(r => r.channel)).size;
+    const avgCompetitorViews = searchResults.length > 0
+        ? Math.round(searchResults.reduce((s, r) => s + r.views, 0) / searchResults.length)
+        : 0;
+    const avgCompetitorSubs = searchResults.length > 0
+        ? Math.round(searchResults.reduce((s, r) => s + (r.subscriberCount ?? 0), 0) / searchResults.length)
+        : 0;
+
+    // Upload frequency benchmark from existing videos
+    const uploadDates = videos.map(v => new Date(v.uploadDate).getTime()).filter(d => !isNaN(d));
+    let uploadFrequencyBenchmark = 2; // default
+    if (uploadDates.length >= 2) {
+        const span = (Math.max(...uploadDates) - Math.min(...uploadDates)) / (1000 * 60 * 60 * 24);
+        if (span > 0) {
+            uploadFrequencyBenchmark = Math.round((videos.length / span) * 7 * 10) / 10;
+        }
+    }
+
+    // Estimated first year views based on market conditions
+    const baseMonthlyViews = avgCompetitorViews * 0.1; // new channel gets ~10% of avg competitor
+    const growthMultiplier = trend.trend === "accelerating" ? 2.5 : trend.trend === "stable" ? 1.5 : 0.8;
+    const competitionFactor = competition.score / 10; // higher = less competition = easier
+    const yearlyBase = baseMonthlyViews * 12 * growthMultiplier * competitionFactor;
+    const estimatedFirstYearViews = {
+        low: Math.max(1000, Math.round(yearlyBase * 0.3)),
+        mid: Math.max(5000, Math.round(yearlyBase)),
+        high: Math.max(20000, Math.round(yearlyBase * 3)),
+    };
+
+    // Revenue estimation using the topic as niche
+    const nicheRevenue = estimateRevenue(estimatedFirstYearViews.mid / 12, topic);
+
+    // Trending keywords: extract from top-performing video titles
+    const titleWordFreq = new Map<string, number>();
+    for (const v of videos.filter(v => v.views > avgCompetitorViews * 0.5)) {
+        const words = v.title.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, " ")
+            .split(/\s+/)
+            .filter(w => w.length > 3 && !STOP_WORDS.has(w));
+        for (const word of words) {
+            titleWordFreq.set(word, (titleWordFreq.get(word) ?? 0) + 1);
+        }
+    }
+    const trendingKeywords = [...titleWordFreq.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([w]) => w);
+
+    // Best sub-niches: combine trending keywords into 2-word phrases
+    const bestSubNiches: string[] = [];
+    const topicWords = topic.toLowerCase().split(/\s+/);
+    for (const kw of trendingKeywords.slice(0, 5)) {
+        if (!topicWords.includes(kw)) {
+            bestSubNiches.push(`${topic} ${kw}`);
+        }
+    }
+    if (bestSubNiches.length === 0) bestSubNiches.push(topic);
+
+    // Overall verdict
+    let overallVerdict: string;
+    if (demandScore >= 70 && competition.score >= 6) {
+        overallVerdict = `🟢 Excellent opportunity. High demand (${demandScore}/100) with manageable competition. This niche has strong growth potential for new creators.`;
+    } else if (demandScore >= 50 && competition.score >= 4) {
+        overallVerdict = `🟡 Good opportunity with moderate competition. Demand is solid (${demandScore}/100). Focus on underserved sub-niches to differentiate.`;
+    } else if (demandScore >= 50 && competition.score < 4) {
+        overallVerdict = `🟠 High demand but very competitive. You'll need strong differentiation and consistent uploads to break through.`;
+    } else if (demandScore < 50 && competition.score >= 6) {
+        overallVerdict = `🔵 Low competition but limited demand. Could work as a niche authority play with patience.`;
+    } else {
+        overallVerdict = `🔴 Challenging market. Consider pivoting to a trending sub-niche or combining with adjacent topics for better results.`;
+    }
+
+    return {
+        demandScore,
+        saturationLevel: saturation.competitionLevel,
+        growthTrajectory: trend.trend,
+        difficultyRating: competition.difficulty,
+        estimatedFirstYearViews,
+        topCompetitorChannels,
+        avgCompetitorViews,
+        avgCompetitorSubs,
+        contentGapCount,
+        bestSubNiches: bestSubNiches.slice(0, 5),
+        audiencePainPoints: frustration.painPoints,
+        trendingKeywords,
+        uploadFrequencyBenchmark,
+        revenueEstimate: {
+            low: nicheRevenue.low * 12,
+            mid: nicheRevenue.mid * 12,
+            high: nicheRevenue.high * 12,
+        },
+        velocityInsight: velocity.insight,
+        saturationInsight: saturation.insight,
+        trendInsight: trend.insight,
+        competitionInsight: competition.insight,
+        overallVerdict,
+    };
+}

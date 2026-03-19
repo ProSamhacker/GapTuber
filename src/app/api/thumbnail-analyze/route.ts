@@ -103,15 +103,33 @@ export async function POST(req: NextRequest) {
     const thumbnailScore = scoreThumbnailConcept(title, keyword);
 
     // AI-powered thumbnail concept generation
-    const groq = createGroq({ apiKey: process.env.GROQ_API_KEY! });
+    const keys = [
+        process.env.GROQ_API_KEY,
+        process.env.GROQ_API_KEY_2,
+        process.env.GROQ_API_KEY_3
+    ].filter(Boolean) as string[];
+
+    if (keys.length === 0) {
+        return NextResponse.json(
+            { error: "Groq API keys not configured" },
+            { status: 503, headers: cors }
+        );
+    }
+
     let aiConcepts: { concepts: Array<{ description: string; textOverlay: string; colorScheme: string; emotionalHook: string }> } = { concepts: [] };
 
-    try {
-        const competitorContext = competitorThumbnailDescriptions?.length
-            ? `\nCOMPETITOR THUMBNAILS: ${competitorThumbnailDescriptions.slice(0, 5).join(" | ")}`
-            : "";
+    let success = false;
+    let lastError: any = null;
 
-        const prompt = `You are a YouTube thumbnail design expert with deep knowledge of CTR optimization.
+    const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
+
+    for (const activeKey of shuffledKeys) {
+        try {
+            const competitorContext = competitorThumbnailDescriptions?.length
+                ? `\nCOMPETITOR THUMBNAILS: ${competitorThumbnailDescriptions.slice(0, 5).join(" | ")}`
+                : "";
+
+            const prompt = `You are a YouTube thumbnail design expert with deep knowledge of CTR optimization.
 
 VIDEO TITLE: "${title}"
 KEYWORD: "${keyword}"
@@ -137,23 +155,32 @@ Respond with ONLY this JSON:
   ]
 }`;
 
-        const result = await generateText({
-            model: groq("llama-3.3-70b-versatile"),
-            messages: [
-                { role: "system", content: "You are a JSON API. Respond with only valid JSON." },
-                { role: "user", content: prompt },
-            ],
-            maxOutputTokens: 800,
-            temperature: 0.5,
-        });
+            const groq = createGroq({ apiKey: activeKey });
+            const result = await generateText({
+                model: groq("llama-3.3-70b-versatile"),
+                messages: [
+                    { role: "system", content: "You are a JSON API. Respond with only valid JSON." },
+                    { role: "user", content: prompt },
+                ],
+                maxOutputTokens: 800,
+                temperature: 0.5,
+            });
 
-        const start = result.text.indexOf("{");
-        const end = result.text.lastIndexOf("}");
-        if (start !== -1 && end > start) {
-            aiConcepts = JSON.parse(result.text.slice(start, end + 1)) as typeof aiConcepts;
+            const start = result.text.indexOf("{");
+            const end = result.text.lastIndexOf("}");
+            if (start !== -1 && end > start) {
+                aiConcepts = JSON.parse(result.text.slice(start, end + 1)) as typeof aiConcepts;
+            }
+            success = true;
+            break;
+        } catch (aiErr: any) {
+            lastError = aiErr;
+            console.warn("[Key Rotation ThumbnailAnalyze] Key failed, trying next...");
         }
-    } catch {
-        // Non-blocking
+    }
+
+    if (!success) {
+        console.error("[Thumbnail AI Error] All keys exhausted.", lastError);
     }
 
     return NextResponse.json({

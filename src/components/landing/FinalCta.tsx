@@ -39,24 +39,15 @@ export default function FinalCta() {
                             Go to Dashboard →
                         </Link>
                     ) : (
-                        <>
-                            <Link
-                                href="#waitlist"
-                                className="inline-flex items-center gap-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-10 py-4 rounded-xl font-bold text-base hover:opacity-90 transition-all hover:shadow-2xl hover:shadow-violet-500/40 active:scale-95 glow-purple"
-                            >
-                                <span className="w-2 h-2 bg-white/50 rounded-full radar-dot" />
-                                Join Early Access — Free
-                            </Link>
-                            <Link
-                                href="/auth/signin"
-                                className="inline-flex items-center gap-2 glass border border-white/10 text-gray-300 px-8 py-4 rounded-xl font-medium text-base hover:border-violet-500/40 hover:text-white transition-all"
-                            >
-                                Sign In &amp; Start →
-                            </Link>
-                        </>
+                        <Link
+                            href="/auth/signin"
+                            className="inline-flex items-center gap-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-10 py-4 rounded-xl font-bold text-base hover:opacity-90 transition-all hover:shadow-2xl hover:shadow-violet-500/40 active:scale-95 glow-purple"
+                        >
+                            <span className="w-2 h-2 bg-white/50 rounded-full radar-dot" />
+                            Get Started — Free
+                        </Link>
                     )}
                 </div>
-                <p className="text-gray-600 text-sm mt-6">No credit card required. Free during early access.</p>
             </div>
         </section>
     );

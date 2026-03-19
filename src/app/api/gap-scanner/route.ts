@@ -10,7 +10,6 @@ import { getUserByEmail } from "@/db/queries";
 
 export const runtime = "edge";
 
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
 
 // ─── CORS ──────────────────────────────────────────────────────────────────────
 
@@ -92,9 +91,10 @@ export async function POST(req: NextRequest) {
             keyword?: string;
             videoTitle?: string;
             comments?: Array<{ text: string; likeCount?: number }>;
+            channelId?: string;
         };
 
-        const { keyword = "youtube", videoTitle = "Unknown Video", comments = [] } = body;
+        const { keyword = "youtube", videoTitle = "Unknown Video", comments = [], channelId = "" } = body;
 
         if (!comments.length) {
             return NextResponse.json(
@@ -103,12 +103,19 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        if (!process.env.GROQ_API_KEY) {
+        const keys = [
+            process.env.GROQ_API_KEY,
+            process.env.GROQ_API_KEY_2,
+            process.env.GROQ_API_KEY_3
+        ].filter(Boolean) as string[];
+
+        if (keys.length === 0) {
             return NextResponse.json(
-                { success: false, error: "GROQ_API_KEY is not configured." },
+                { success: false, error: "Groq API keys not configured." },
                 { status: 500, headers: corsHeaders }
             );
         }
+
 
         // Sort by likes DESC, take top 35
         const sorted = [...comments]
@@ -149,12 +156,34 @@ For commentInsights:
 - topPainPoints: top 5 pain points from comments (short phrases)
 - topQuestions: top 5 questions viewers asked that weren't answered`;
 
-        const { object } = await generateObject({
-            model: groq("llama-3.3-70b-versatile"),
-            schema: ResponseSchema,
-            prompt,
-            temperature: 0.4,
-        });
+        let object: any = null;
+        let success = false;
+        let lastError: any = null;
+
+        const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
+
+        for (const activeKey of shuffledKeys) {
+            try {
+                const groq = createGroq({ apiKey: activeKey });
+                const result = await generateObject({
+                    model: groq("llama-3.3-70b-versatile"),
+                    schema: ResponseSchema,
+                    prompt,
+                    temperature: 0.4,
+                });
+                object = result.object;
+                success = true;
+                break;
+            } catch (aiErr: any) {
+                lastError = aiErr;
+                console.warn("[Key Rotation GapScanner] Key failed, trying next...");
+            }
+        }
+
+        if (!success || !object) {
+            console.error("[Gap Scanner AI Error] All keys exhausted.", lastError);
+            return NextResponse.json({ success: false, error: "AI service temporarily unavailable (Rate limit)." }, { status: 503, headers: corsHeaders });
+        }
 
         // ── Persist to DB (non-blocking, fire-and-forget) ───────────────────────
         try {
@@ -162,23 +191,35 @@ For commentInsights:
             if (userEmail) {
                 const user = await getUserByEmail(userEmail);
                 if (user) {
-                    await db.insert(scans).values({
-                        userId: user.id,
-                        keyword,
-                        competitors: [],       // comment mining has no competitor URLs
-                        rawData: {
-                            source: "comment-mine",
-                            videoTitle,
-                            commentCount: comments.length,
-                            commentInsights: object.commentInsights,
-                        },
-                        result: {
-                            gaps: object.gaps,
-                            overallOpportunity: object.overallOpportunity,
-                        },
-                        analytics: null,       // no channel analytics for comment mining
-                    });
-                    console.log(`[GapScanner] Saved ${object.gaps.length} gaps for ${userEmail} — "${keyword}"`);
+                    let targetChannelId = channelId;
+                    if (!targetChannelId) {
+                        const { getChannelsByUserId } = await import("@/db/queries");
+                        const userChannels = await getChannelsByUserId(user.id);
+                        if (userChannels.length > 0) {
+                            targetChannelId = userChannels[0].id;
+                        }
+                    }
+
+                    if (targetChannelId) {
+                        await db.insert(scans).values({
+                            userId: user.id,
+                            channelId: targetChannelId,
+                            keyword,
+                            competitors: [],       // comment mining has no competitor URLs
+                            rawData: {
+                                source: "comment-mine",
+                                videoTitle,
+                                commentCount: comments.length,
+                                commentInsights: object.commentInsights,
+                            },
+                            result: {
+                                gaps: object.gaps,
+                                overallOpportunity: object.overallOpportunity,
+                            },
+                            analytics: null,       // no channel analytics for comment mining
+                        });
+                        console.log(`[GapScanner] Saved ${object.gaps.length} gaps for ${userEmail} — "${keyword}" on channel ${targetChannelId}`);
+                    }
                 }
             }
         } catch (dbErr) {

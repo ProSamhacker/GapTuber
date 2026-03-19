@@ -7,7 +7,7 @@ import { auth } from "@/auth";
 import { decode } from "next-auth/jwt";
 import { db } from "@/db";
 import { scans } from "@/db/schema";
-import { getUserByEmail } from "@/db/queries";
+import { getUserByEmail, getChannelsByUserId } from "@/db/queries";
 import {
     buildGapCandidates,
     computeVelocityScore,
@@ -126,26 +126,53 @@ export async function POST(req: NextRequest) {
         // Phase 2: AI refinement via Groq
         const prompt = buildAnalysisPrompt(input.keyword, candidates);
 
-        const groq = createGroq({ apiKey: process.env.GROQ_API_KEY! });
+        const keys = [
+            process.env.GROQ_API_KEY,
+            process.env.GROQ_API_KEY_2,
+            process.env.GROQ_API_KEY_3
+        ].filter(Boolean) as string[];
 
-        let rawAiText: string;
-        try {
-            const model = groq("llama-3.3-70b-versatile");
-            const result = await generateText({
-                model,
-                messages: [
-                    {
-                        role: "system",
-                        content: "You are a JSON API. Respond with only valid JSON, no markdown, no explanation.",
-                    },
-                    { role: "user", content: prompt },
-                ],
-                maxOutputTokens: 1500,
-                temperature: 0.3,
-            });
-            rawAiText = result.text;
-        } catch (aiError) {
-            console.error("[AI Error]", aiError);
+        if (keys.length === 0) {
+            return NextResponse.json(
+                { error: "Groq API keys not configured", message: "Missing API keys." },
+                { status: 503, headers: getCorsHeaders(req) }
+            );
+        }
+
+
+        let rawAiText: string = "";
+        let aiSuccess = false;
+        let lastError: any = null;
+
+        const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
+
+        for (const activeKey of shuffledKeys) {
+            try {
+                const groq = createGroq({ apiKey: activeKey });
+                const model = groq("llama-3.3-70b-versatile");
+                const result = await generateText({
+                    model,
+                    messages: [
+                        {
+                            role: "system",
+                            content: "You are a JSON API. Respond with only valid JSON, no markdown, no explanation.",
+                        },
+                        { role: "user", content: prompt },
+                    ],
+                    maxOutputTokens: 1500,
+                    temperature: 0.3,
+                });
+                rawAiText = result.text;
+                aiSuccess = true;
+                break;
+            } catch (aiError: any) {
+                lastError = aiError;
+                console.warn("[Key Rotation Analyze] Key failed, trying next...");
+            }
+        }
+
+        if (!aiSuccess) {
+            console.error("[AI Error] All keys exhausted.", lastError);
             return NextResponse.json(
                 {
                     error: "AI service error",
@@ -226,24 +253,29 @@ export async function POST(req: NextRequest) {
             if (userEmail) {
                 const user = await getUserByEmail(userEmail);
                 if (user) {
-                    // Compute analytics for DB storage
-                    const velocityData2 = computeVelocityScore(input.videos);
-                    const saturationData2 = computeSaturationScore(input.searchResults);
-                    const frustrationData2 = computeFrustrationScore(input.comments);
-                    const engagementData2 = computeEngagementScore(input.videos);
-                    const trendData2 = computeTrendMomentum(input.videos);
-                    const competitionData2 = computeCompetitionScore(input.searchResults);
-                    const scheduleData2 = computeOptimalUploadSchedule(input.videos);
-                    const suggestedTags2 = generateOptimalTags(input.keyword, input.videos, frustrationData2.topKeywords);
-                    const avgViews2 = input.videos.length > 0
-                        ? input.videos.reduce((s, v) => s + v.views, 0) / input.videos.length
-                        : 10000;
-                    const revenueEstimate2 = estimateRevenue(avgViews2, input.keyword);
+                    const userChannels = await getChannelsByUserId(user.id);
+                    if (userChannels.length > 0) {
+                        const targetChannelId = userChannels[0].id;
 
-                    await db.insert(scans).values({
-                        userId: user.id,
-                        keyword: input.keyword,
-                        competitors: input.competitors,
+                        // Compute analytics for DB storage
+                        const velocityData2 = computeVelocityScore(input.videos);
+                        const saturationData2 = computeSaturationScore(input.searchResults);
+                        const frustrationData2 = computeFrustrationScore(input.comments);
+                        const engagementData2 = computeEngagementScore(input.videos);
+                        const trendData2 = computeTrendMomentum(input.videos);
+                        const competitionData2 = computeCompetitionScore(input.searchResults);
+                        const scheduleData2 = computeOptimalUploadSchedule(input.videos);
+                        const suggestedTags2 = generateOptimalTags(input.keyword, input.videos, frustrationData2.topKeywords);
+                        const avgViews2 = input.videos.length > 0
+                            ? input.videos.reduce((s, v) => s + v.views, 0) / input.videos.length
+                            : 10000;
+                        const revenueEstimate2 = estimateRevenue(avgViews2, input.keyword);
+
+                        await db.insert(scans).values({
+                            userId: user.id,
+                            channelId: targetChannelId,
+                            keyword: input.keyword,
+                            competitors: input.competitors,
                         rawData: {
                             videoCount: input.videos.length,
                             commentCount: input.comments.length,
@@ -264,8 +296,9 @@ export async function POST(req: NextRequest) {
                             uploadSchedule: { bestDay: scheduleData2.bestDay, bestHour: scheduleData2.bestHour, insight: scheduleData2.insight },
                             revenueEstimate: { low: revenueEstimate2.low, mid: revenueEstimate2.mid, high: revenueEstimate2.high },
                             suggestedTags: suggestedTags2.slice(0, 20),
-                        },
-                    });
+                            },
+                        });
+                    }
                 }
             }
         } catch (dbError) {

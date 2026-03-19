@@ -5,7 +5,6 @@ import HowItWorks from "@/components/landing/HowItWorks";
 import SampleOutput from "@/components/landing/SampleOutput";
 import WhySection from "@/components/landing/WhySection";
 import SocialProof from "@/components/landing/SocialProof";
-import WaitlistSection from "@/components/landing/WaitlistSection";
 import FinalCta from "@/components/landing/FinalCta";
 import Footer from "@/components/landing/Footer";
 
@@ -19,7 +18,6 @@ export default function HomePage() {
       <HowItWorks />
       <SampleOutput />
       <SocialProof />
-      <WaitlistSection />
       <FinalCta />
       <Footer />
     </main>

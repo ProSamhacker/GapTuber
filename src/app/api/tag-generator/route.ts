@@ -86,11 +86,29 @@ export async function POST(req: NextRequest) {
     const { tags: deterministicTags, categories } = generateDeterministicTags(keyword, competitorTags ?? []);
 
     // AI-powered tag expansion
-    const groq = createGroq({ apiKey: process.env.GROQ_API_KEY! });
+    const keys = [
+        process.env.GROQ_API_KEY,
+        process.env.GROQ_API_KEY_2,
+        process.env.GROQ_API_KEY_3
+    ].filter(Boolean) as string[];
+
+    if (keys.length === 0) {
+        return NextResponse.json(
+            { error: "Groq API keys not configured" },
+            { status: 503, headers: cors }
+        );
+    }
+
     let aiTags: string[] = [];
 
-    try {
-        const prompt = `You are a YouTube SEO expert specializing in tag optimization.
+    let success = false;
+    let lastError: any = null;
+
+    const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
+
+    for (const activeKey of shuffledKeys) {
+        try {
+            const prompt = `You are a YouTube SEO expert specializing in tag optimization.
 
 KEYWORD: "${keyword}"
 VIDEO TITLE: "${title ?? keyword}"
@@ -114,24 +132,33 @@ Respond with ONLY this JSON:
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11", "tag12", "tag13", "tag14", "tag15", "tag16", "tag17", "tag18", "tag19", "tag20"]
 }`;
 
-        const result = await generateText({
-            model: groq("llama-3.3-70b-versatile"),
-            messages: [
-                { role: "system", content: "You are a JSON API. Respond with only valid JSON." },
-                { role: "user", content: prompt },
-            ],
-            maxOutputTokens: 600,
-            temperature: 0.4,
-        });
+            const groq = createGroq({ apiKey: activeKey });
+            const result = await generateText({
+                model: groq("llama-3.3-70b-versatile"),
+                messages: [
+                    { role: "system", content: "You are a JSON API. Respond with only valid JSON." },
+                    { role: "user", content: prompt },
+                ],
+                maxOutputTokens: 600,
+                temperature: 0.4,
+            });
 
-        const start = result.text.indexOf("{");
-        const end = result.text.lastIndexOf("}");
-        if (start !== -1 && end > start) {
-            const parsed2 = JSON.parse(result.text.slice(start, end + 1)) as { tags: string[] };
-            aiTags = parsed2.tags ?? [];
+            const start = result.text.indexOf("{");
+            const end = result.text.lastIndexOf("}");
+            if (start !== -1 && end > start) {
+                const parsed2 = JSON.parse(result.text.slice(start, end + 1)) as { tags: string[] };
+                aiTags = parsed2.tags ?? [];
+            }
+            success = true;
+            break;
+        } catch (aiErr: any) {
+            lastError = aiErr;
+            console.warn("[Key Rotation TagGenerator] Key failed, trying next...");
         }
-    } catch {
-        // Non-blocking
+    }
+
+    if (!success) {
+        console.error("[TagGenerator AI Error] All keys exhausted.", lastError);
     }
 
     // Merge and deduplicate

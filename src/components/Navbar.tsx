@@ -23,12 +23,13 @@ export default function Navbar() {
                     <Link href="#how-it-works" className="text-sm text-gray-400 hover:text-white transition-colors">
                         How It Works
                     </Link>
-                    <Link href="#waitlist" className="text-sm text-gray-400 hover:text-white transition-colors">
-                        Early Access
-                    </Link>
-                    {session && (
-                        <Link href="/dashboard" className="text-sm text-gray-400 hover:text-white transition-colors">
-                            Dashboard
+                    {session ? (
+                        <Link href="/dashboard" className="text-sm text-violet-400 font-semibold hover:text-violet-300 transition-colors">
+                            Enter Dashboard &rarr;
+                        </Link>
+                    ) : (
+                        <Link href="/auth/signin" className="text-sm text-gray-400 hover:text-white transition-colors">
+                            Get Started
                         </Link>
                     )}
                 </div>
@@ -63,10 +64,10 @@ export default function Navbar() {
                                 Sign in
                             </Link>
                             <Link
-                                href="#waitlist"
+                                href="/auth/signin"
                                 className="text-sm bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-all hover:shadow-lg hover:shadow-violet-500/25 active:scale-95"
                             >
-                                Join Waitlist
+                                Get Started
                             </Link>
                         </>
                     )}

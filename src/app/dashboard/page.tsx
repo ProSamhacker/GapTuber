@@ -1,9 +1,13 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { getUserByEmail } from "@/db/queries";
-import { getUserScans } from "@/db/queries";
+import { 
+    getUserByEmail, 
+    getChannelsByUserId, 
+    getChannelScans 
+} from "@/db/queries";
 import Link from "next/link";
 import type { GapItem, ScanAnalytics } from "@/db/schema";
+import FlashcardRoadmap from "@/components/dashboard/FlashcardRoadmap";
 
 export const metadata = {
     title: "Dashboard — AuraIQ",
@@ -223,133 +227,123 @@ function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ channelId?: string }>;
+}) {
     const session = await auth();
+    const { channelId: selectedId } = await searchParams;
 
     if (!session?.user?.email) {
         redirect("/auth/signin");
     }
 
     const user = await getUserByEmail(session.user.email);
-
     if (!user) {
         redirect("/auth/signin");
     }
 
-    const scans = await getUserScans(user.id);
+    // Fetch all channels
+    const allChannels = await getChannelsByUserId(user.id);
+    
+    // Select channel (by param or fallback to latest)
+    const activeChannel = selectedId 
+        ? allChannels.find((c: any) => c.id === selectedId) || allChannels[0]
+        : allChannels[0];
+
+    if (!activeChannel) {
+        redirect("/onboarding");
+    }
+
+    const scans = await getChannelScans(activeChannel.id);
 
     // Aggregate stats
-    const totalGaps = scans.reduce((s, scan) => {
+    const totalGaps = scans.reduce((s: number, scan: any) => {
         const result = scan.result as { gaps: GapItem[] } | null;
         return s + (result?.gaps?.length ?? 0);
     }, 0);
-    const allGaps = scans.flatMap(s => (s.result as { gaps: GapItem[] } | null)?.gaps ?? []);
+    const allGaps = scans.flatMap((s: any) => (s.result as { gaps: GapItem[] } | null)?.gaps ?? []);
     const avgGapScore = allGaps.length > 0
-        ? (allGaps.reduce((s, g) => s + g.gapScore, 0) / allGaps.length).toFixed(1)
+        ? (allGaps.reduce((s: number, g: any) => s + g.gapScore, 0) / allGaps.length).toFixed(1)
         : "—";
-    const uniqueKeywords = new Set(scans.map(s => s.keyword)).size;
 
     return (
-        <div className="min-h-screen bg-[#0a0a0f]">
-            {/* Ambient glow */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-0 left-1/4 w-[600px] h-[400px] bg-violet-600/8 rounded-full blur-[140px]" />
-                <div className="absolute bottom-0 right-1/4 w-[400px] h-[300px] bg-indigo-600/6 rounded-full blur-[100px]" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+            {/* Channel Header Info */}
+            <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-2">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-violet-500/10 text-violet-300 rounded-full text-[10px] font-bold uppercase tracking-wider border border-violet-500/20">
+                        {activeChannel.role === "new_tuber" ? "🚀 New Channel Project" : "📺 Existing Channel"}
+                    </div>
+                    <h1 className="text-4xl font-extrabold text-white">{activeChannel.name}</h1>
+                    <p className="text-slate-500 text-sm max-w-xl">
+                        {activeChannel.role === "new_tuber" 
+                            ? `Creating a brand new channel in the ${activeChannel.category} niche focusing on ${activeChannel.topic}.`
+                            : `Analyzing and growing the YouTube handle ${activeChannel.youtubeChannelId}.`
+                        }
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
+                    <div className="text-center px-4 border-r border-white/5">
+                        <div className="text-xl font-bold text-white">{scans.length}</div>
+                        <div className="text-[10px] uppercase text-slate-500 font-bold tracking-widest">Scans</div>
+                    </div>
+                    <div className="text-center px-4">
+                        <div className="text-xl font-bold text-white">{totalGaps}</div>
+                        <div className="text-[10px] uppercase text-slate-500 font-bold tracking-widest">Gaps</div>
+                    </div>
+                </div>
             </div>
 
-            {/* Header */}
-            <header className="sticky top-0 z-10 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/[0.06]">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-2.5 group">
-                        <img src="/auraiq-logo.png" alt="AuraIQ Logo" className="w-9 h-9 object-contain" />
-                        <span className="text-base font-bold text-white">AuraIQ</span>
-                    </Link>
+            <div className="mb-12">
+                <FlashcardRoadmap
+                    key={activeChannel.id}
+                    category={activeChannel.category ?? "General"}
+                    topic={activeChannel.topic ?? "YouTube Channel"}
+                    theme={activeChannel.brandingData ? (activeChannel.brandingData as any).theme : "tech"}
+                    channelId={activeChannel.id}
+                    videoIdeas={(activeChannel as any).videoIdeas ?? []}
+                />
+            </div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="hidden md:flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 rounded-lg px-3 py-1.5">
-                            <span className="text-xs text-violet-300 font-medium">📡 Use Chrome Extension to run scans</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {session.user.image && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={session.user.image} alt={session.user.name ?? "User"} className="w-7 h-7 rounded-full ring-1 ring-violet-500/40" />
-                            )}
-                            <span className="text-sm text-slate-300 hidden sm:block">{session.user.name}</span>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <main className="relative max-w-7xl mx-auto px-4 sm:px-6 py-8">
-                {/* Stats Overview */}
-                {scans.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                        {[
-                            { value: scans.length.toString(), label: "Total Scans", icon: "📡", color: "border-violet-500/20" },
-                            { value: totalGaps.toString(), label: "Gaps Found", icon: "🎯", color: "border-blue-500/20" },
-                            { value: avgGapScore.toString(), label: "Avg Gap Score", icon: "📊", color: "border-emerald-500/20" },
-                            { value: uniqueKeywords.toString(), label: "Keywords Analyzed", icon: "🔍", color: "border-orange-500/20" },
-                        ].map(stat => (
-                            <div key={stat.label} className={`bg-white/[0.03] border rounded-2xl p-5 text-center ${stat.color}`}>
-                                <div className="text-2xl mb-1">{stat.icon}</div>
-                                <div className="text-3xl font-black text-white tabular-nums">{stat.value}</div>
-                                <div className="text-xs text-slate-500 mt-1 font-medium">{stat.label}</div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* Page header */}
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <h1 className="text-2xl font-bold text-white">Your Gap Scans</h1>
-                        <p className="text-slate-500 text-sm mt-1">
-                            {scans.length === 0
-                                ? "No scans yet. Run your first scan with the Chrome Extension."
-                                : `${scans.length} scan${scans.length === 1 ? "" : "s"} saved`}
-                        </p>
+            {/* Scans Section */}
+            <div className="space-y-8">
+                <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        📡 Recent Gap Signals
+                    </h2>
+                    <div className="text-xs text-violet-400 font-medium px-3 py-1.5 bg-violet-500/10 border border-violet-500/20 rounded-lg">
+                        🔗 Use Browser Extension to scan
                     </div>
                 </div>
 
-                {/* Empty state */}
                 {scans.length === 0 ? (
-                    <div className="text-center py-24">
-                        <div className="w-20 h-20 bg-violet-500/10 border border-violet-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <span className="text-3xl">📡</span>
-                        </div>
-                        <h3 className="text-lg font-semibold text-white mb-2">No scans yet</h3>
-                        <p className="text-slate-500 text-sm max-w-sm mx-auto mb-8">
-                            Install the AuraIQ Chrome Extension, navigate to a YouTube channel, and run your first gap scan.
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                            <Link
-                                href="#"
-                                className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-medium text-sm hover:opacity-90 transition-opacity"
-                            >
-                                📡 Get Chrome Extension
-                            </Link>
-                            <Link
-                                href="/"
-                                className="inline-flex items-center gap-2 bg-white/[0.04] border border-white/10 text-slate-400 px-6 py-3 rounded-xl font-medium text-sm hover:border-violet-500/30 hover:text-white transition-all"
-                            >
-                                Learn More
-                            </Link>
-                        </div>
+                    <div className="text-center py-20 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl">
+                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">📡</div>
+                        <h3 className="text-white font-bold mb-1">No scans recorded for this channel</h3>
+                        <p className="text-slate-500 text-sm mb-6">Open the YouTube channel in your browser and use the AuraIQ extension.</p>
+                        <Link 
+                            href="#" 
+                            className="inline-flex items-center gap-2 bg-white/10 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-white/15 transition-all"
+                        >
+                            Install Extension &rarr;
+                        </Link>
                     </div>
                 ) : (
-                    <div className="space-y-14">
+                    <div className="space-y-16">
                         {[...scans].reverse().map((scan) => {
                             const result = scan.result as { gaps: GapItem[]; overallOpportunity?: string; recommendedNiche?: string } | null;
                             const analytics = scan.analytics as ScanAnalytics | null;
                             if (!result?.gaps?.length) return null;
 
                             return (
-                                <div key={scan.id}>
-                                    {/* Scan header */}
+                                <div key={scan.id} className="animate-fade-in">
                                     <div className="flex items-start justify-between mb-5">
                                         <div>
                                             <div className="flex items-center gap-3 mb-1 flex-wrap">
-                                                <span className="text-xl font-bold text-white">
+                                                <span className="text-2xl font-bold text-white tracking-tight">
                                                     &ldquo;{scan.keyword}&rdquo;
                                                 </span>
                                                 {result.recommendedNiche && (
@@ -358,41 +352,27 @@ export default async function DashboardPage() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap">
+                                            <div className="flex items-center gap-3 text-xs text-slate-500">
                                                 <span>{new Date(scan.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span>
                                                 <span>·</span>
                                                 <span>{result.gaps.length} gaps found</span>
-                                                {scan.competitors && (
-                                                    <>
-                                                        <span>·</span>
-                                                        <span>{(scan.competitors as string[]).length} channels analyzed</span>
-                                                    </>
-                                                )}
                                             </div>
-                                            {result.overallOpportunity && (
-                                                <p className="text-sm text-slate-400 mt-2 max-w-2xl leading-relaxed">{result.overallOpportunity}</p>
-                                            )}
                                         </div>
                                     </div>
 
-                                    {/* Analytics */}
                                     {analytics && <AnalyticsPanel analytics={analytics} />}
 
-                                    {/* Gap Cards */}
                                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
                                         {result.gaps.map((gap, i) => (
                                             <GapCard key={i} gap={gap} rank={i + 1} />
                                         ))}
                                     </div>
-
-                                    {/* Divider */}
-                                    <div className="border-b border-white/[0.04] mt-10" />
                                 </div>
                             );
                         })}
                     </div>
                 )}
-            </main>
+            </div>
         </div>
     );
 }

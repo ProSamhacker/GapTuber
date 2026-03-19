@@ -184,7 +184,19 @@ export async function POST(req: NextRequest) {
     );
 
     // AI-powered improvement suggestions
-    const groq = createGroq({ apiKey: process.env.GROQ_API_KEY! });
+    const keys = [
+        process.env.GROQ_API_KEY,
+        process.env.GROQ_API_KEY_2,
+        process.env.GROQ_API_KEY_3
+    ].filter(Boolean) as string[];
+
+    if (keys.length === 0) {
+        return NextResponse.json(
+            { error: "Groq API keys not configured" },
+            { status: 503, headers: cors }
+        );
+    }
+
 
     let aiSuggestions: { improvedTitle: string; improvedDescription: string; additionalTags: string[] } = {
         improvedTitle: title,
@@ -192,8 +204,14 @@ export async function POST(req: NextRequest) {
         additionalTags: [],
     };
 
-    try {
-        const prompt = `You are a YouTube SEO expert. Analyze and improve this video's SEO.
+    let success = false;
+    let lastError: any = null;
+
+    const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
+
+    for (const activeKey of shuffledKeys) {
+        try {
+            const prompt = `You are a YouTube SEO expert. Analyze and improve this video's SEO.
 
 KEYWORD: "${keyword}"
 NICHE: ${channelNiche ?? "Tech/AI"}
@@ -215,24 +233,33 @@ Respond with ONLY this JSON:
   "additionalTags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"]
 }`;
 
-        const result = await generateText({
-            model: groq("llama-3.3-70b-versatile"),
-            messages: [
-                { role: "system", content: "You are a JSON API. Respond with only valid JSON." },
-                { role: "user", content: prompt },
-            ],
-            maxOutputTokens: 800,
-            temperature: 0.3,
-        });
+            const groq = createGroq({ apiKey: activeKey });
+            const result = await generateText({
+                model: groq("llama-3.3-70b-versatile"),
+                messages: [
+                    { role: "system", content: "You are a JSON API. Respond with only valid JSON." },
+                    { role: "user", content: prompt },
+                ],
+                maxOutputTokens: 800,
+                temperature: 0.3,
+            });
 
-        const start = result.text.indexOf("{");
-        const end = result.text.lastIndexOf("}");
-        if (start !== -1 && end > start) {
-            const parsed2 = JSON.parse(result.text.slice(start, end + 1)) as typeof aiSuggestions;
-            aiSuggestions = parsed2;
+            const start = result.text.indexOf("{");
+            const end = result.text.lastIndexOf("}");
+            if (start !== -1 && end > start) {
+                const parsed2 = JSON.parse(result.text.slice(start, end + 1)) as typeof aiSuggestions;
+                aiSuggestions = parsed2;
+            }
+            success = true;
+            break;
+        } catch (aiErr: any) {
+            lastError = aiErr;
+            console.warn("[Key Rotation SeoAudit] Key failed, trying next...");
         }
-    } catch {
-        // Non-blocking — return deterministic results even if AI fails
+    }
+
+    if (!success) {
+        console.error("[SeoAudit AI Error] All keys exhausted.", lastError);
     }
 
     return NextResponse.json({
