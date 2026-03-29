@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
-import { createChannel, getUserByEmail, updateChannelBlueprint } from "@/db/queries";
+import { createChannel, getUserByEmail, updateChannelBlueprint, getChannelsByUserId } from "@/db/queries";
 import { redirect } from "next/navigation";
 
 export async function completeNewTuberOnboarding(formData: FormData) {
@@ -10,6 +10,11 @@ export async function completeNewTuberOnboarding(formData: FormData) {
 
     const dbUser = await getUserByEmail(session.user.email);
     if (!dbUser) throw new Error("User not found in database.");
+
+    const existingChannels = await getChannelsByUserId(dbUser.id);
+    if (existingChannels.length >= 5) {
+        throw new Error("You have reached the maximum limit of 5 projects.");
+    }
 
     const category = formData.get("category") as string;
     const topic = formData.get("topic") as string;
@@ -61,6 +66,11 @@ export async function completeExistingTuberOnboarding(formData: FormData) {
 
     const dbUser = await getUserByEmail(session.user.email);
     if (!dbUser) throw new Error("User not found in database.");
+
+    const existingChannels = await getChannelsByUserId(dbUser.id);
+    if (existingChannels.length >= 5) {
+        throw new Error("You have reached the maximum limit of 5 projects.");
+    }
 
     const channelUrl = formData.get("channelUrl") as string;
 

@@ -1,23 +1,51 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
-import { upsertUser, getUserByEmail, getChannelsByUserId } from "@/db/queries";
+import { upsertUser, getUserByEmail, getChannelsByUserId, updateChannelYoutubeTokens } from "@/db/queries";
+import { cookies } from "next/headers";
 
 export const { handlers, auth: originalAuth, signIn, signOut } = NextAuth({
     providers: [
         Google({
             clientId: process.env.AUTH_GOOGLE_ID!,
             clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+            authorization: {
+                params: {
+                    scope: [
+                        "openid",
+                        "email",
+                        "profile",
+                        "https://www.googleapis.com/auth/youtube.readonly",
+                    ].join(" "),
+                    access_type: "offline",
+                    prompt: "consent",
+                },
+            },
         }),
     ],
     callbacks: {
-        async signIn({ user }) {
+        async signIn({ user, account }) {
             if (!user.email) return false;
             try {
-                await upsertUser(
+                const dbUser = await upsertUser(
                     user.email,
                     user.name ?? undefined,
                     user.image ?? undefined
                 );
+                
+                // Read the target channel ID cookie set before OAuth redirect
+                const cookieStore = await cookies();
+                const targetChannelId = cookieStore.get("connect_channel_id")?.value;
+
+                // Save YouTube OAuth tokens specifically to the target channel project
+                if (targetChannelId && account?.access_token) {
+                    await updateChannelYoutubeTokens(targetChannelId, {
+                        accessToken: account.access_token,
+                        refreshToken: account.refresh_token ?? null,
+                        expiresAt: account.expires_at
+                            ? new Date(account.expires_at * 1000)
+                            : null,
+                    });
+                }
             } catch (err) {
                 console.error("[Auth] DB upsert failed (non-blocking):", err);
             }
@@ -31,7 +59,7 @@ export const { handlers, auth: originalAuth, signIn, signOut } = NextAuth({
             }
             return session;
         },
-        async jwt({ token, user, trigger, session }) {
+        async jwt({ token, user, account, trigger, session }) {
             if (user) {
                 token.sub = user.id;
                 if (user.email) token.email = user.email;
@@ -40,17 +68,21 @@ export const { handlers, auth: originalAuth, signIn, signOut } = NextAuth({
                 try {
                     let dbUser = await getUserByEmail(user.email!);
                     if (!dbUser) {
-                        // Safety net: construct user if they somehow skipped signIn callback
                         dbUser = await upsertUser(user.email!, user.name ?? undefined, user.image ?? undefined);
                     }
                     if (dbUser) {
-                        token.sub = dbUser.id; // Enforce DB UUID as the session ID
+                        token.sub = dbUser.id;
                         const channels = await getChannelsByUserId(dbUser.id);
                         token.hasChannels = channels.length > 0;
                     }
                 } catch (e) {
                     console.error("Failed to sync DB user for JWT", e);
                 }
+            }
+
+            // Persist access token to token for downstream use if needed
+            if (account?.access_token) {
+                token.youtubeAccessToken = account.access_token;
             }
             
             if (trigger === "update" && session) {
@@ -66,29 +98,4 @@ export const { handlers, auth: originalAuth, signIn, signOut } = NextAuth({
     secret: process.env.AUTH_SECRET,
 });
 
-export const auth = async (...args: any[]) => {
-    // AUTO-LOGIN BYPASS FOR TESTING (dev only)
-    if (process.env.NODE_ENV === "development") {
-        try {
-            const dbUser = await upsertUser(
-                "browser-test@example.com",
-                "Browser Test Runner",
-                "https://api.dicebear.com/7.x/avataaars/svg?seed=BrowserTest"
-            );
-            return {
-                user: {
-                    id: dbUser.id,
-                    email: dbUser.email,
-                    name: dbUser.name,
-                    image: dbUser.image,
-                    hasChannels: true,
-                },
-                expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            } as any;
-        } catch {
-            // Fallback — return a dummy (won't hit DB features)
-            return null;
-        }
-    }
-    return originalAuth(...args as Parameters<typeof originalAuth>);
-};
+export const auth = originalAuth;

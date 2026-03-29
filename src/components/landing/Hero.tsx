@@ -1,102 +1,113 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 
-const FEATURES = [
-    { icon: "📊", label: "Channel Analysis" },
-    { icon: "🎯", label: "Gap Scanner" },
-    { icon: "🔍", label: "SEO Auditor" },
-    { icon: "🏷️", label: "Tag Generator" },
-    { icon: "🖼️", label: "Thumbnail AI" },
-    { icon: "📅", label: "Upload Scheduler" },
+const TOOLS = [
+    { label: "Gap Scanner", desc: "Statistical content gap detection" },
+    { label: "Channel Analysis", desc: "500+ video deep-dive" },
+    { label: "SEO Auditor", desc: "Title, tags & description scoring" },
+    { label: "Tag Generator", desc: "50 AI-optimised tags" },
+    { label: "Thumbnail AI", desc: "Colour-psychology concepts" },
+    { label: "Upload Scheduler", desc: "Best time to post" },
 ];
+
+const SAMPLE_GAP = {
+    keyword: "rag tutorial",
+    title: "Beginner-Friendly RAG for Solo Devs (2026 Stack)",
+    score: "8.7",
+    signals: [
+        { k: "Velocity", v: "High" },
+        { k: "Saturation", v: "Low" },
+        { k: "Frustration", v: "High" },
+        { k: "Competition", v: "Easy" },
+    ],
+    hook: '"Stop using RAG tutorials from 2023."',
+};
 
 export default async function Hero() {
     const session = await auth();
     return (
-        <section className="relative pt-24 sm:pt-32 pb-16 sm:pb-28 px-4 overflow-hidden bg-[#0a0a0f]">
-            {/* Animated mesh gradient background */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-[-20%] left-[10%] w-[500px] h-[500px] bg-violet-600/20 rounded-full blur-[120px] glow-pulse" />
-                <div className="absolute top-[10%] right-[5%] w-[400px] h-[400px] bg-indigo-600/15 rounded-full blur-[100px] glow-pulse" style={{ animationDelay: "1s" }} />
-                <div className="absolute bottom-0 left-[30%] w-[300px] h-[300px] bg-sky-600/10 rounded-full blur-[80px] glow-pulse" style={{ animationDelay: "2s" }} />
-                {/* Grid lines */}
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(124,58,237,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(124,58,237,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
-            </div>
-
-            <div className="relative max-w-5xl mx-auto text-center">
-                {/* Label */}
-                <div className="animate-fade-in-delay">
-                    <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 mb-7">
-                        <span className="w-2 h-2 bg-violet-500 rounded-full radar-dot" />
-                        <span className="text-sm font-medium text-gray-300">
-                            YouTube Intelligence Suite — 5 Powerful AI Tools
-                        </span>
+        <section className="pt-24 pb-16 px-5 border-b border-[#1e1e22]">
+            <div className="max-w-6xl mx-auto">
+                <div className="grid lg:grid-cols-2 gap-12 items-start">
+                    {/* Left — Copy */}
+                    <div className="pt-6">
+                        <p className="text-xs font-mono text-emerald-400 mb-6 tracking-widest uppercase">
+                            YouTube Intelligence Suite · 6 tools
+                        </p>
+                        <h1 className="text-5xl sm:text-6xl font-extrabold text-white leading-[1.05] tracking-tight mb-6">
+                            Find the gap before<br />
+                            your competitors do.
+                        </h1>
+                        <p className="text-zinc-400 text-lg leading-relaxed mb-8 max-w-md">
+                            GapTuber scans competitor channels with a 7-signal statistical engine and surfaces content opportunities your competitors haven't touched yet.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3 mb-10">
+                            {session ? (
+                                <Link
+                                    href="/dashboard"
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-md font-semibold text-sm transition-colors"
+                                >
+                                    Open Dashboard →
+                                </Link>
+                            ) : (
+                                <Link
+                                    href="/auth/signin"
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-md font-semibold text-sm transition-colors"
+                                >
+                                    Start for free →
+                                </Link>
+                            )}
+                            <Link href="#how-it-works" className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+                                How it works
+                            </Link>
+                        </div>
+                        {/* Tool list */}
+                        <div className="border-t border-[#1e1e22] pt-6">
+                            <p className="text-xs text-zinc-600 font-mono mb-4">WHAT'S INCLUDED</p>
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                                {TOOLS.map(t => (
+                                    <div key={t.label}>
+                                        <span className="text-sm font-medium text-zinc-300">{t.label}</span>
+                                        <p className="text-xs text-zinc-600 mt-0.5">{t.desc}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                {/* Headline */}
-                <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold text-white leading-[1.1] tracking-tight mb-6 animate-fade-in-delay-2">
-                    Find Your Next{" "}
-                    <span className="shimmer-text">Viral Gap</span>
-                    {" "}Before Anyone Else.
-                </h1>
-
-                {/* Subheadline */}
-                <p className="text-base sm:text-xl text-gray-400 max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed animate-fade-in-delay-3">
-                    AuraIQ scans competitor channels using statistical algorithms and AI to surface
-                    untapped YouTube content opportunities — before your competitors see them.
-                </p>
-
-                {/* Feature Pills */}
-                <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-2xl mx-auto mb-12 animate-fade-in-delay-3">
-                    {FEATURES.map(f => (
-                        <div
-                            key={f.label}
-                            className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 hover:border-violet-500/50 hover:bg-violet-500/10 transition-all cursor-default"
-                        >
-                            <span className="text-sm">{f.icon}</span>
-                            <span className="text-sm font-medium text-gray-300">{f.label}</span>
+                    {/* Right — Sample Terminal Card */}
+                    <div className="bg-[#111113] border border-[#1e1e22] rounded-xl overflow-hidden font-mono text-sm mt-4">
+                        {/* Terminal bar */}
+                        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#1e1e22]">
+                            <span className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
+                            <span className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
+                            <span className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
+                            <span className="ml-3 text-xs text-zinc-600">gap_scan → "{SAMPLE_GAP.keyword}"</span>
                         </div>
-                    ))}
-                </div>
-
-                {/* CTA Buttons */}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-                    {session ? (
-                        <Link
-                            href="/dashboard"
-                            className="inline-flex items-center gap-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-base hover:opacity-90 transition-all hover:shadow-xl hover:shadow-violet-500/30 active:scale-95 glow-purple"
-                        >
-                            <span className="w-2 h-2 bg-white/60 rounded-full radar-dot" />
-                            Go to Dashboard &rarr;
-                        </Link>
-                    ) : (
-                        <Link
-                            href="/auth/signin"
-                            className="inline-flex items-center gap-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-base hover:opacity-90 transition-all hover:shadow-xl hover:shadow-violet-500/30 active:scale-95 glow-purple"
-                        >
-                            <span className="w-2 h-2 bg-white/60 rounded-full radar-dot" />
-                            Get Started — Free
-                        </Link>
-                    )}
-                    <Link
-                        href="#how-it-works"
-                        className="inline-flex items-center gap-2 glass border border-white/10 text-gray-300 px-8 py-4 rounded-xl font-medium text-base hover:border-violet-500/40 hover:text-white transition-all"
-                    >
-                        See How It Works &rarr;
-                    </Link>
-                </div>
-
-                {/* Trust badges */}
-                <div className="flex items-center justify-center gap-6 flex-wrap">
-                    {["No credit card required", "Hybrid AI + statistical engine", "Results in under 60s", "Beats VidIQ & TubeBuddy"].map(badge => (
-                        <div key={badge} className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-                            <svg className="w-4 h-4 text-violet-400" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-sm text-gray-400 font-medium">{badge}</span>
+                        {/* Output */}
+                        <div className="p-5 space-y-4">
+                            <div>
+                                <p className="text-zinc-600 text-xs mb-1">GAP #1 · SCORE</p>
+                                <p className="text-emerald-400 text-3xl font-extrabold">{SAMPLE_GAP.score}<span className="text-zinc-700 text-lg">/10</span></p>
+                            </div>
+                            <div>
+                                <p className="text-zinc-600 text-xs mb-1">SUGGESTED TITLE</p>
+                                <p className="text-zinc-200 text-[13px] leading-snug">{SAMPLE_GAP.title}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                {SAMPLE_GAP.signals.map(s => (
+                                    <div key={s.k} className="bg-[#0c0c0e] border border-[#1e1e22] rounded-lg px-3 py-2">
+                                        <p className="text-zinc-600 text-[10px]">{s.k}</p>
+                                        <p className={`text-xs font-semibold mt-0.5 ${s.v === "High" || s.v === "Easy" ? "text-emerald-400" : s.v === "Low" ? "text-amber-400" : "text-zinc-300"}`}>{s.v}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="border-t border-[#1e1e22] pt-3">
+                                <p className="text-zinc-600 text-[10px] mb-1">HOOK</p>
+                                <p className="text-zinc-300 text-[13px] italic">{SAMPLE_GAP.hook}</p>
+                            </div>
                         </div>
-                    ))}
+                    </div>
                 </div>
             </div>
         </section>

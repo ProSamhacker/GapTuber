@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Sparkles, PlayCircle, Video, Users, Eye, Loader2, RefreshCw } from "lucide-react";
+import { Database, Play, Video, Users, Eye, Loader2, RefreshCw } from "lucide-react";
 import type { VideoIdeaDB } from "@/db/schema";
 
 interface VideoIdea {
@@ -16,14 +16,11 @@ interface VideoIdea {
 }
 
 function ViewPotentialBadge({ level }: { level: string }) {
-    const colors: Record<string, string> = {
-        high: "bg-violet-500/20 text-violet-300 border-violet-500/30",
-        medium: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-        low: "bg-slate-500/20 text-slate-300 border-slate-500/30",
-    };
+    const isHigh = level.toLowerCase() === "high";
     return (
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${colors[level] || colors["medium"]}`}>
-            <Eye className="w-3 h-3" /> {level.toUpperCase()}
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono tracking-widest uppercase border ${isHigh ? "bg-emerald-600/10 text-emerald-400 border-emerald-600/20" : "bg-[#1e1e22] text-zinc-400 border-[#2a2a30]"}`}>
+            {isHigh && <Eye className="w-3 h-3" />}
+            {level} POTENTIAL
         </span>
     );
 }
@@ -121,110 +118,113 @@ Ensure the storytelling is highly engaging, high-retention, and ends with a stro
     };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <Sparkles className="w-6 h-6 text-violet-400" />
-                        Your Content Roadmap
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-1">
+                        <Database className="w-5 h-5 text-emerald-400" />
+                        Content Roadmap
                     </h2>
-                    <p className="text-slate-400 text-sm mt-1">
+                    <p className="text-zinc-500 text-sm">
                         {videoIdeas.length > 0
-                            ? <>Data-driven video concepts based on real YouTube market analysis for <span className="text-white font-medium">{topic}</span>.</>
-                            : <>Generate AI-powered video ideas tailored for your <span className="text-white font-medium">{category}</span> channel about <span className="text-white font-medium">{topic}</span>.</>
+                            ? <>Data-driven concepts computed for <span className="text-zinc-300 font-mono text-xs bg-[#1e1e22] px-1.5 py-0.5 rounded">{topic}</span>.</>
+                            : <>Generate calculated video ideas based on <span className="text-zinc-300 font-mono text-xs bg-[#1e1e22] px-1.5 py-0.5 rounded">{category}</span> trends.</>
                         }
                     </p>
                 </div>
             </div>
 
             {ideas.length === 0 ? (
-                <div className="text-center py-16 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl">
-                    <div className="w-16 h-16 bg-violet-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
-                        <Sparkles className="w-8 h-8 text-violet-400" />
+                <div className="text-center py-16 bg-[#111113] border border-[#1e1e22] rounded-xl">
+                    <div className="w-12 h-12 bg-[#1e1e22] rounded flex items-center justify-center mx-auto mb-4 border border-[#2a2a30]">
+                        <Database className="w-5 h-5 text-zinc-400" />
                     </div>
-                    <h3 className="text-white font-bold mb-1">No video ideas yet</h3>
-                    <p className="text-slate-500 text-sm mb-6 max-w-md mx-auto">
-                        Generate data-driven video concepts based on real YouTube market analysis, competitor gaps, and trending keywords.
+                    <h3 className="text-zinc-200 font-bold mb-1">No concepts generated</h3>
+                    <p className="text-zinc-500 text-sm mb-6 max-w-sm mx-auto">
+                        Compute data-driven video concepts based on real YouTube market analysis, competitor gaps, and trends.
                     </p>
                     <button
                         onClick={handleGenerateIdeas}
                         disabled={isGenerating}
-                        className="inline-flex items-center gap-2 bg-violet-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-violet-500 transition-all disabled:opacity-50 shadow-lg shadow-violet-500/20"
+                        className="inline-flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded text-sm font-semibold hover:bg-emerald-500 transition-colors disabled:opacity-50"
                     >
                         {isGenerating ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing YouTube Market...</>
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Computing...</>
                         ) : (
-                            <><Sparkles className="w-4 h-4" /> Generate Video Ideas</>
+                            <><Play className="w-4 h-4 fill-current" /> Compute Video Ideas</>
                         )}
                     </button>
                 </div>
             ) : (
                 <>
-                    <div className="grid md:grid-cols-3 gap-6">
+                    <div className="grid md:grid-cols-3 gap-4">
                         {ideas.slice(0, 6).map((idea, index) => (
                             <motion.div
                                 key={idea.id}
-                                initial={{ opacity: 0, y: 20 }}
+                                initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.1 }}
-                                className="relative rounded-3xl p-6 border bg-white/[0.03] border-violet-500/30 hover:border-violet-500/50 hover:bg-white/[0.05] transition-all group"
+                                transition={{ delay: index * 0.05 }}
+                                className="flex flex-col bg-[#111113] border border-[#1e1e22] hover:border-[#2a2a30] rounded-xl p-5 transition-colors"
                             >
                                 <div className="flex items-center justify-between mb-4">
-                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Video {index + 1}</span>
+                                    <span className="text-[10px] font-mono font-bold text-zinc-600 uppercase">Video_0{index + 1}</span>
                                     {videoIdeas[index]?.estimatedViewPotential && (
                                         <ViewPotentialBadge level={videoIdeas[index].estimatedViewPotential} />
                                     )}
                                 </div>
 
-                                <h3 className="text-lg font-bold text-white leading-tight mb-3">
+                                <h3 className="text-white font-bold leading-snug mb-4">
                                     {idea.title}
                                 </h3>
 
-                                <div className="space-y-4 mb-6">
-                                    <div className="bg-black/20 rounded-xl p-3">
-                                        <span className="block text-[10px] uppercase tracking-wider text-violet-400 mb-1 font-semibold">The Hook</span>
-                                        <p className="text-xs text-slate-300 italic">&quot;{idea.hook}&quot;</p>
+                                <div className="space-y-4 mb-6 flex-1">
+                                    <div className="bg-[#0c0c0e] border border-[#1e1e22] rounded p-3">
+                                        <span className="block text-[10px] font-mono text-zinc-600 mb-1.5 uppercase">Hook_Prompt</span>
+                                        <p className="text-[13px] text-zinc-300 italic">"{idea.hook}"</p>
                                     </div>
 
-                                    <div className="flex items-center gap-4 text-xs text-slate-400">
-                                        <div className="flex items-center gap-1.5">
-                                            <Video className="w-3.5 h-3.5" />
-                                            {idea.format}
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-500">
+                                            <Video className="w-3.5 h-3.5 text-zinc-400" />
+                                            <span className="bg-[#1e1e22] px-1.5 py-0.5 rounded">{idea.format}</span>
                                         </div>
                                         {videoIdeas[index]?.targetAudience && (
-                                            <div className="flex items-center gap-1.5">
-                                                <Users className="w-3.5 h-3.5" />
-                                                {videoIdeas[index].targetAudience}
+                                            <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-500">
+                                                <Users className="w-3.5 h-3.5 text-zinc-400" />
+                                                <span className="bg-[#1e1e22] px-1.5 py-0.5 rounded text-left truncate max-w-[120px]" title={videoIdeas[index].targetAudience}>{videoIdeas[index].targetAudience}</span>
                                             </div>
                                         )}
                                     </div>
 
                                     {videoIdeas[index]?.whyItWorks && (
-                                        <p className="text-xs text-slate-500 leading-relaxed">{videoIdeas[index].whyItWorks}</p>
+                                        <div className="pt-2 border-t border-[#1e1e22]">
+                                            <p className="text-[10px] font-mono text-zinc-600 mb-1 uppercase">Reasoning</p>
+                                            <p className="text-xs text-zinc-500 leading-relaxed">{videoIdeas[index].whyItWorks}</p>
+                                        </div>
                                     )}
                                 </div>
 
                                 <button
                                     onClick={() => handleGenerateScript(idea, index)}
-                                    className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all bg-violet-600 text-white hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/20"
+                                    className="w-full py-2.5 rounded bg-[#0c0c0e] border border-[#1e1e22] hover:border-emerald-500/50 hover:bg-emerald-600/5 flex items-center justify-center gap-2 text-xs font-semibold text-zinc-300 hover:text-emerald-300 transition-colors"
                                 >
-                                    <PlayCircle className="w-4 h-4" />
-                                    Generate Script in AuraBot
+                                    <Play className="w-3.5 h-3.5 fill-current" />
+                                    Launch Script Gen
                                 </button>
                             </motion.div>
                         ))}
                     </div>
 
-                    <div className="flex justify-center pt-4">
+                    <div className="flex justify-center pt-2">
                         <button
                             onClick={handleGenerateIdeas}
                             disabled={isGenerating}
-                            className="text-sm text-slate-500 hover:text-white transition-colors flex items-center gap-2 disabled:opacity-50"
+                            className="text-xs font-mono text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-2 disabled:opacity-50"
                         >
                             {isGenerating ? (
-                                <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
+                                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> RECOMPUTING...</>
                             ) : (
-                                <><RefreshCw className="w-4 h-4" /> Generate new ideas</>
+                                <><RefreshCw className="w-3 h-3" /> [ RERUN_COMPUTATION ]</>
                             )}
                         </button>
                     </div>

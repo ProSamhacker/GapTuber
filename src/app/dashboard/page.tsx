@@ -10,22 +10,22 @@ import type { GapItem, ScanAnalytics } from "@/db/schema";
 import FlashcardRoadmap from "@/components/dashboard/FlashcardRoadmap";
 
 export const metadata = {
-    title: "Dashboard — AuraIQ",
+    title: "Dashboard — GapTuber",
 };
 
 // ─── Score Bar ────────────────────────────────────────────────────────────────
 
-function ScoreBar({ label, score, color }: { label: string; score: number; color: string }) {
+function ScoreBar({ label, score, colorClass }: { label: string; score: number; colorClass: string }) {
     return (
-        <div className="flex items-center gap-3 mb-2">
-            <span className="text-xs text-slate-500 w-24 flex-shrink-0 font-medium">{label}</span>
-            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+        <div className="flex items-center gap-3 mb-2.5">
+            <span className="text-[11px] font-mono uppercase text-zinc-500 w-24 flex-shrink-0">{label}</span>
+            <div className="flex-1 h-1.5 bg-[#1e1e22] rounded-full overflow-hidden">
                 <div
-                    className={`h-full rounded-full transition-all duration-700 ${color}`}
+                    className={`h-full rounded-full transition-all duration-700 ${colorClass}`}
                     style={{ width: `${score}%` }}
                 />
             </div>
-            <span className="text-xs font-bold text-slate-400 w-8 text-right tabular-nums">{score}%</span>
+            <span className="text-[11px] font-mono font-bold text-zinc-400 w-8 text-right tabular-nums">{score}</span>
         </div>
     );
 }
@@ -33,13 +33,13 @@ function ScoreBar({ label, score, color }: { label: string; score: number; color
 // ─── Metric Card ──────────────────────────────────────────────────────────────
 
 function MetricCard({
-    value, label, icon, color,
-}: { value: string; label: string; icon: string; color: string }) {
+    value, label, icon
+}: { value: string; label: string; icon: string }) {
     return (
-        <div className={`rounded-2xl p-4 text-center border ${color} bg-white/[0.03]`}>
-            <div className="text-xl mb-1">{icon}</div>
-            <div className="text-2xl font-black text-white tabular-nums leading-none">{value}</div>
-            <div className="text-xs text-slate-500 mt-1 font-medium">{label}</div>
+        <div className="rounded-lg p-3 border border-[#1e1e22] bg-[#0c0c0e]">
+            <div className="text-lg mb-1">{icon}</div>
+            <div className="text-xl font-bold text-white tabular-nums leading-none tracking-tight">{value}</div>
+            <div className="text-[10px] font-mono text-zinc-600 mt-1.5 uppercase tracking-widest">{label}</div>
         </div>
     );
 }
@@ -47,62 +47,47 @@ function MetricCard({
 // ─── Gap Card ─────────────────────────────────────────────────────────────────
 
 function GapCard({ gap, rank }: { gap: GapItem; rank: number }) {
-    const scoreColor = gap.gapScore >= 8
-        ? "border-violet-500/40 bg-violet-500/5"
-        : gap.gapScore >= 6
-            ? "border-blue-500/30 bg-blue-500/5"
-            : gap.gapScore >= 4
-                ? "border-amber-500/30 bg-amber-500/5"
-                : "border-white/5 bg-white/[0.02]";
-
-    const badgeColor = gap.gapScore >= 8
-        ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
-        : gap.gapScore >= 6
-            ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-            : gap.gapScore >= 4
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                : "bg-white/5 text-slate-400 border border-white/10";
-
+    const isTopGap = gap.gapScore >= 8;
+    
     return (
-        <div className={`rounded-2xl border transition-all hover:scale-[1.01] hover:shadow-lg hover:shadow-violet-500/10 overflow-hidden ${scoreColor}`}>
+        <div className={`rounded-xl border bg-[#111113] overflow-hidden ${isTopGap ? "border-emerald-600/30" : "border-[#1e1e22]"}`}>
             {/* Card header */}
-            <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Gap #{rank}</span>
-                <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${badgeColor}`}>
-                    <div className="w-1.5 h-1.5 rounded-full bg-current" />
-                    {gap.gapScore}/10
+            <div className="px-5 py-3 border-b border-[#1e1e22] flex items-center justify-between bg-[#0c0c0e]">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase">gap_result_0{rank}</span>
+                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono font-bold border ${isTopGap ? "bg-emerald-600/10 text-emerald-400 border-emerald-600/20" : "bg-[#1e1e22] text-zinc-400 border-[#2a2a30]"}`}>
+                    score:{gap.gapScore}
                 </div>
             </div>
 
-            <div className="p-5 space-y-3">
+            <div className="p-5 space-y-4">
                 {/* Title */}
-                <h3 className="font-semibold text-white text-sm leading-snug">{gap.title}</h3>
+                <h3 className="font-bold text-zinc-100 text-sm leading-snug">{gap.title}</h3>
 
                 {/* Reasoning */}
-                <p className="text-xs text-slate-500 leading-relaxed">{gap.reasoning}</p>
+                <p className="text-[13px] text-zinc-500 leading-relaxed">{gap.reasoning}</p>
 
                 {/* Hook */}
-                <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl px-4 py-3">
-                    <div className="text-xs font-semibold text-violet-400 mb-1">🎣 Hook</div>
-                    <p className="text-xs text-slate-300 italic">&ldquo;{gap.hook}&rdquo;</p>
+                <div className="bg-[#0c0c0e] border border-[#1e1e22] rounded p-3">
+                    <div className="text-[10px] font-mono text-zinc-600 mb-1 uppercase">hook_string</div>
+                    <p className="text-[13px] text-zinc-300 italic">&ldquo;{gap.hook}&rdquo;</p>
                 </div>
 
                 {/* Target Audience */}
                 {gap.targetAudience && (
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-2">
-                        <div className="text-xs font-semibold text-blue-400 mb-1">👥 Target Audience</div>
-                        <p className="text-xs text-slate-300">{gap.targetAudience}</p>
+                    <div className="bg-[#0c0c0e] border border-[#1e1e22] rounded p-3">
+                        <div className="text-[10px] font-mono text-zinc-600 mb-1 uppercase">target_audience</div>
+                        <p className="text-[13px] text-zinc-300">{gap.targetAudience}</p>
                     </div>
                 )}
 
                 {/* Content Outline */}
                 {gap.contentOutline && gap.contentOutline.length > 0 && (
-                    <div>
-                        <div className="text-xs font-semibold text-slate-500 mb-2">📋 Content Outline</div>
+                    <div className="pt-2">
+                        <div className="text-[10px] font-mono text-zinc-600 mb-2 uppercase">content_outline</div>
                         <div className="space-y-1.5">
                             {gap.contentOutline.map((item, i) => (
-                                <div key={i} className="flex items-start gap-2 text-xs text-slate-400">
-                                    <span className="w-4 h-4 bg-violet-500/20 text-violet-400 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
+                                <div key={i} className="flex items-start gap-2 text-[13px] text-zinc-400">
+                                    <span className="font-mono text-zinc-600 mt-[1px]">{(i+1).toString().padStart(2, '0')}</span>
                                     {item}
                                 </div>
                             ))}
@@ -112,32 +97,32 @@ function GapCard({ gap, rank }: { gap: GapItem; rank: number }) {
 
                 {/* Competitor Weakness */}
                 {gap.competitorWeakness && (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2">
-                        <div className="text-xs font-semibold text-red-400 mb-1">🎯 Competitor Weakness</div>
-                        <p className="text-xs text-slate-300">{gap.competitorWeakness}</p>
+                    <div className="pt-2 border-t border-[#1e1e22]">
+                        <div className="text-[10px] font-mono text-zinc-600 mb-1 uppercase">competitor_weakness</div>
+                        <p className="text-[13px] text-zinc-400">{gap.competitorWeakness}</p>
                     </div>
                 )}
 
                 {/* Format + Monetization */}
-                <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-white/[0.03] border border-white/5 rounded-xl px-3 py-2">
-                        <div className="text-xs font-semibold text-slate-600 mb-1">📹 Format</div>
-                        <p className="text-xs text-slate-300">{gap.format}</p>
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#1e1e22]">
+                    <div>
+                        <div className="text-[10px] font-mono text-zinc-600 mb-1 uppercase">format</div>
+                        <p className="text-xs text-zinc-300">{gap.format}</p>
                     </div>
-                    <div className="bg-white/[0.03] border border-white/5 rounded-xl px-3 py-2">
-                        <div className="text-xs font-semibold text-slate-600 mb-1">💰 Angle</div>
-                        <p className="text-xs text-slate-300">{gap.monetizationAngle}</p>
+                    <div>
+                        <div className="text-[10px] font-mono text-zinc-600 mb-1 uppercase">angle</div>
+                        <p className="text-xs text-zinc-300">{gap.monetizationAngle}</p>
                     </div>
                 </div>
 
                 {/* SEO Tips */}
                 {gap.seoTips && gap.seoTips.length > 0 && (
-                    <div>
-                        <div className="text-xs font-semibold text-slate-500 mb-2">🔍 SEO Tips</div>
+                    <div className="pt-2 border-t border-[#1e1e22]">
+                        <div className="text-[10px] font-mono text-zinc-600 mb-2 uppercase">seo_params</div>
                         <div className="space-y-1">
                             {gap.seoTips.map((tip, i) => (
-                                <div key={i} className="flex items-start gap-2 text-xs text-slate-400">
-                                    <span className="text-emerald-400 flex-shrink-0">✓</span>
+                                <div key={i} className="flex items-start gap-2 text-[13px] text-zinc-400">
+                                    <span className="text-zinc-600 flex-shrink-0">—</span>
                                     {tip}
                                 </div>
                             ))}
@@ -153,58 +138,60 @@ function GapCard({ gap, rank }: { gap: GapItem; rank: number }) {
 
 function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
     const metrics = [
-        { value: analytics.velocity.score.toFixed(1), label: "Velocity", icon: "📈", color: "border-blue-500/20" },
-        { value: analytics.saturation.score.toFixed(1), label: "Opportunity", icon: "🎯", color: "border-emerald-500/20" },
-        { value: analytics.frustration.score.toFixed(1), label: "Frustration", icon: "😤", color: "border-orange-500/20" },
-        { value: analytics.trend.score.toFixed(1), label: "Trend", icon: "📊", color: "border-violet-500/20" },
+        { value: analytics.velocity.score.toFixed(1), label: "Velocity", icon: "📈" },
+        { value: analytics.saturation.score.toFixed(1), label: "Opportunity", icon: "💎" },
+        { value: analytics.frustration.score.toFixed(1), label: "Frustration", icon: "😤" },
+        { value: analytics.trend.score.toFixed(1), label: "Trend_Match", icon: "📊" },
     ];
 
     return (
-        <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-5 mb-6">
-            <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                <span>📡</span> Gap Signal Metrics
-                <span className="text-xs font-normal text-slate-600 ml-1">(higher = stronger opportunity)</span>
+        <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5 mb-8">
+            <h3 className="text-sm font-mono text-zinc-300 uppercase tracking-widest border-b border-[#1e1e22] pb-3 mb-4">
+                Scan_Analytics_Data
             </h3>
 
             {/* Score cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                 {metrics.map(m => (
                     <MetricCard key={m.label} {...m} />
                 ))}
             </div>
 
-            {/* Score bars */}
-            <div className="mb-4">
-                <ScoreBar label="Velocity" score={Math.round(analytics.velocity.score * 10)} color="bg-gradient-to-r from-blue-600 to-blue-400" />
-                <ScoreBar label="Opportunity" score={Math.round(analytics.saturation.score * 10)} color="bg-gradient-to-r from-emerald-600 to-emerald-400" />
-                <ScoreBar label="Frustration" score={Math.round(analytics.frustration.score * 10)} color="bg-gradient-to-r from-orange-600 to-orange-400" />
-                <ScoreBar label="Trend" score={Math.round(analytics.trend.score * 10)} color="bg-gradient-to-r from-violet-600 to-violet-400" />
-                <ScoreBar label="Competition" score={Math.round(analytics.competition.score * 10)} color="bg-gradient-to-r from-cyan-600 to-cyan-400" />
-                <ScoreBar label="Engagement" score={Math.round(analytics.engagement.score * 10)} color="bg-gradient-to-r from-pink-600 to-pink-400" />
-            </div>
-
-            {/* Insight row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Upload schedule */}
-                <div className="bg-white/[0.03] border border-white/5 rounded-xl p-3">
-                    <div className="text-xs font-semibold text-slate-500 mb-1">📅 Best Upload Window</div>
-                    <div className="text-sm font-bold text-white">{analytics.uploadSchedule.bestDay} · {analytics.uploadSchedule.bestHour}:00 UTC</div>
-                    <div className="text-xs text-slate-500 mt-1 leading-relaxed">{analytics.uploadSchedule.insight}</div>
+            {/* Score bars & Insights split */}
+            <div className="grid lg:grid-cols-2 gap-8">
+                {/* Score bars */}
+                <div>
+                    <h4 className="text-[10px] font-mono text-zinc-600 uppercase mb-3">Signal Strengths</h4>
+                    <ScoreBar label="Velocity" score={Math.round(analytics.velocity.score * 10)} colorClass="bg-zinc-300" />
+                    <ScoreBar label="Opportunity" score={Math.round(analytics.saturation.score * 10)} colorClass="bg-zinc-300" />
+                    <ScoreBar label="Frustration" score={Math.round(analytics.frustration.score * 10)} colorClass="bg-zinc-400" />
+                    <ScoreBar label="Trend" score={Math.round(analytics.trend.score * 10)} colorClass="bg-zinc-400" />
+                    <ScoreBar label="Competition" score={Math.round(analytics.competition.score * 10)} colorClass="bg-zinc-500" />
+                    <ScoreBar label="Engagement" score={Math.round(analytics.engagement.score * 10)} colorClass="bg-zinc-600" />
                 </div>
-                {/* Velocity insight */}
-                <div className="bg-white/[0.03] border border-white/5 rounded-xl p-3">
-                    <div className="text-xs font-semibold text-slate-500 mb-1">📈 Velocity Signal</div>
-                    <div className="text-xs text-slate-300 leading-relaxed">{analytics.velocity.insight}</div>
+
+                {/* Insights */}
+                <div className="space-y-3">
+                    <h4 className="text-[10px] font-mono text-zinc-600 uppercase mb-3">Computed Insights</h4>
+                    <div className="bg-[#0c0c0e] border border-[#1e1e22] rounded p-3">
+                        <div className="text-[10px] font-mono text-zinc-600 mb-1 uppercase">Best_Upload_Window</div>
+                        <div className="text-sm font-bold text-zinc-200">{analytics.uploadSchedule.bestDay} • {analytics.uploadSchedule.bestHour}:00 UTC</div>
+                        <div className="text-xs text-zinc-500 mt-1">{analytics.uploadSchedule.insight}</div>
+                    </div>
+                    <div className="bg-[#0c0c0e] border border-[#1e1e22] rounded p-3">
+                        <div className="text-[10px] font-mono text-zinc-600 mb-1 uppercase">Velocity_Signal</div>
+                        <div className="text-xs text-zinc-400 leading-relaxed">{analytics.velocity.insight}</div>
+                    </div>
                 </div>
             </div>
 
             {/* Pain points */}
             {analytics.frustration.painPoints.length > 0 && (
-                <div className="mt-3">
-                    <div className="text-xs font-semibold text-slate-500 mb-2">😤 Audience Pain Points</div>
-                    <div className="flex flex-wrap gap-1.5">
+                <div className="mt-6 pt-5 border-t border-[#1e1e22]">
+                    <div className="text-[10px] font-mono text-zinc-600 mb-3 uppercase">Audience_Pain_Points</div>
+                    <div className="flex flex-wrap gap-2">
                         {analytics.frustration.painPoints.map((p, i) => (
-                            <span key={i} className="text-xs bg-red-500/10 text-red-400 border border-red-500/20 rounded-full px-2.5 py-0.5">⚡ {p}</span>
+                            <span key={i} className="text-xs font-mono bg-red-950/30 text-red-400 border border-red-900/50 rounded px-2 py-1">! {p}</span>
                         ))}
                     </div>
                 </div>
@@ -212,11 +199,11 @@ function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
 
             {/* Suggested Tags */}
             {analytics.suggestedTags.length > 0 && (
-                <div className="mt-3">
-                    <div className="text-xs font-semibold text-slate-500 mb-2">🏷️ Suggested Tags</div>
+                <div className="mt-5">
+                    <div className="text-[10px] font-mono text-zinc-600 mb-3 uppercase">Suggested_Tags</div>
                     <div className="flex flex-wrap gap-1.5">
-                        {analytics.suggestedTags.slice(0, 12).map((tag, i) => (
-                            <span key={i} className="text-xs bg-violet-500/10 text-violet-400 border border-violet-500/20 rounded-full px-2.5 py-0.5">{tag}</span>
+                        {analytics.suggestedTags.slice(0, 15).map((tag, i) => (
+                            <span key={i} className="text-[11px] font-mono bg-[#1e1e22] text-zinc-400 rounded px-2 py-0.5">{tag}</span>
                         ))}
                     </div>
                 </div>
@@ -263,41 +250,37 @@ export default async function DashboardPage({
         const result = scan.result as { gaps: GapItem[] } | null;
         return s + (result?.gaps?.length ?? 0);
     }, 0);
-    const allGaps = scans.flatMap((s: any) => (s.result as { gaps: GapItem[] } | null)?.gaps ?? []);
-    const avgGapScore = allGaps.length > 0
-        ? (allGaps.reduce((s: number, g: any) => s + g.gapScore, 0) / allGaps.length).toFixed(1)
-        : "—";
 
     return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 fade-up">
             {/* Channel Header Info */}
-            <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="space-y-2">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-violet-500/10 text-violet-300 rounded-full text-[10px] font-bold uppercase tracking-wider border border-violet-500/20">
-                        {activeChannel.role === "new_tuber" ? "🚀 New Channel Project" : "📺 Existing Channel"}
+            <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-[#1e1e22] pb-6">
+                <div className="space-y-3">
+                    <div className="inline-flex items-center gap-2 px-2 py-0.5 bg-[#1e1e22] text-zinc-400 rounded text-[10px] font-mono font-bold uppercase tracking-wider">
+                        {activeChannel.role === "new_tuber" ? "project_new" : "project_existing"}
                     </div>
-                    <h1 className="text-4xl font-extrabold text-white">{activeChannel.name}</h1>
-                    <p className="text-slate-500 text-sm max-w-xl">
+                    <h1 className="text-4xl font-extrabold text-white tracking-tight">{activeChannel.name}</h1>
+                    <p className="text-zinc-500 text-sm max-w-xl">
                         {activeChannel.role === "new_tuber" 
-                            ? `Creating a brand new channel in the ${activeChannel.category} niche focusing on ${activeChannel.topic}.`
-                            : `Analyzing and growing the YouTube handle ${activeChannel.youtubeChannelId}.`
+                            ? `Computed strategy for a new channel in the [${activeChannel.category}] category focusing on [${activeChannel.topic}].`
+                            : `Analyzing gap signals for YouTube handle [${activeChannel.youtubeChannelId}].`
                         }
                     </p>
                 </div>
 
-                <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
-                    <div className="text-center px-4 border-r border-white/5">
-                        <div className="text-xl font-bold text-white">{scans.length}</div>
-                        <div className="text-[10px] uppercase text-slate-500 font-bold tracking-widest">Scans</div>
+                <div className="flex items-center gap-4 border border-[#1e1e22] bg-[#111113] rounded-lg px-6 py-4">
+                    <div className="text-left md:text-center pr-6 border-r border-[#1e1e22]">
+                        <div className="text-2xl font-bold text-white leading-none mb-1">{scans.length}</div>
+                        <div className="text-[10px] font-mono uppercase text-zinc-600 tracking-widest">Scans_Run</div>
                     </div>
-                    <div className="text-center px-4">
-                        <div className="text-xl font-bold text-white">{totalGaps}</div>
-                        <div className="text-[10px] uppercase text-slate-500 font-bold tracking-widest">Gaps</div>
+                    <div className="text-left md:text-center">
+                        <div className="text-2xl font-bold text-white leading-none mb-1">{totalGaps}</div>
+                        <div className="text-[10px] font-mono uppercase text-zinc-600 tracking-widest">Gaps_Mined</div>
                     </div>
                 </div>
             </div>
 
-            <div className="mb-12">
+            <div className="mb-16">
                 <FlashcardRoadmap
                     key={activeChannel.id}
                     category={activeChannel.category ?? "General"}
@@ -310,25 +293,25 @@ export default async function DashboardPage({
 
             {/* Scans Section */}
             <div className="space-y-8">
-                <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        📡 Recent Gap Signals
+                <div className="flex items-center justify-between border-b border-[#1e1e22] pb-3">
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        Scan History
                     </h2>
-                    <div className="text-xs text-violet-400 font-medium px-3 py-1.5 bg-violet-500/10 border border-violet-500/20 rounded-lg">
-                        🔗 Use Browser Extension to scan
+                    <div className="text-[10px] font-mono text-zinc-500 px-2 py-1 bg-[#1e1e22] rounded">
+                        via GapTuber Extension
                     </div>
                 </div>
 
                 {scans.length === 0 ? (
-                    <div className="text-center py-20 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl">
-                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">📡</div>
-                        <h3 className="text-white font-bold mb-1">No scans recorded for this channel</h3>
-                        <p className="text-slate-500 text-sm mb-6">Open the YouTube channel in your browser and use the AuraIQ extension.</p>
+                    <div className="text-center py-20 bg-[#111113] border border-[#1e1e22] rounded-xl flex flex-col items-center">
+                        <div className="w-12 h-12 bg-[#1e1e22] border border-[#2a2a30] rounded flex items-center justify-center mb-5 text-xl">📡</div>
+                        <h3 className="text-zinc-200 font-bold mb-2">Awaiting first scan data</h3>
+                        <p className="text-zinc-500 text-sm mb-6 max-w-sm">Use the GapTuber extension on any YouTube channel to execute a new gap scan.</p>
                         <Link 
                             href="#" 
-                            className="inline-flex items-center gap-2 bg-white/10 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-white/15 transition-all"
+                            className="bg-white text-black px-5 py-2.5 rounded text-sm font-semibold hover:bg-zinc-200 transition-colors"
                         >
-                            Install Extension &rarr;
+                            Extension Download
                         </Link>
                     </div>
                 ) : (
@@ -339,24 +322,22 @@ export default async function DashboardPage({
                             if (!result?.gaps?.length) return null;
 
                             return (
-                                <div key={scan.id} className="animate-fade-in">
-                                    <div className="flex items-start justify-between mb-5">
-                                        <div>
-                                            <div className="flex items-center gap-3 mb-1 flex-wrap">
-                                                <span className="text-2xl font-bold text-white tracking-tight">
-                                                    &ldquo;{scan.keyword}&rdquo;
+                                <div key={scan.id}>
+                                    <div className="mb-6">
+                                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                            <span className="text-xl font-bold text-white tracking-tight">
+                                                query: "{scan.keyword}"
+                                            </span>
+                                            {result.recommendedNiche && (
+                                                <span className="text-[10px] font-mono bg-[#111113] border border-[#1e1e22] text-zinc-400 rounded px-2 py-0.5">
+                                                    niche: {result.recommendedNiche}
                                                 </span>
-                                                {result.recommendedNiche && (
-                                                    <span className="text-xs bg-violet-500/15 text-violet-300 border border-violet-500/25 rounded-full px-2.5 py-0.5 font-medium">
-                                                        {result.recommendedNiche}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-3 text-xs text-slate-500">
-                                                <span>{new Date(scan.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span>
-                                                <span>·</span>
-                                                <span>{result.gaps.length} gaps found</span>
-                                            </div>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs font-mono text-zinc-600">
+                                            <span>{new Date(scan.createdAt).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }).toUpperCase()}</span>
+                                            <span>|</span>
+                                            <span>FOUND {result.gaps.length} GAPS</span>
                                         </div>
                                     </div>
 

@@ -1,79 +1,56 @@
-const problems = [
-    "Random idea generation with no data",
-    "Generic keyword tools that everyone uses",
-    "Guessing based on trending topics",
-    "Blindly copying competitor videos",
+const BEFORE = [
+    "Searching trending topics and copying them",
+    "Using generic keyword tools everyone else uses",
+    "Guessing from view counts with no signal context",
+    "Blindly copying competitors' best-performing videos",
 ];
 
-const solutions = [
-    { icon: "⚡", label: "Velocity detection", desc: "Spot channels gaining momentum before they peak" },
-    { icon: "😤", label: "Frustration mining", desc: "NLP analysis of comment pain points" },
-    { icon: "🎯", label: "Underserved angle discovery", desc: "Find the exact gap your competitors miss" },
-    { icon: "⏱", label: "Strategic timing insight", desc: "Know *when* to post for maximum impact" },
+const AFTER = [
+    { icon: "⚡", label: "Velocity detection", desc: "Find channels gaining momentum before they peak." },
+    { icon: "😤", label: "Frustration mining", desc: "NLP analysis of comment pain points to find what viewers hate about existing content." },
+    { icon: "🎯", label: "Gap scoring engine", desc: "7 signals combined into a 0–10 score. Not vibes — math." },
+    { icon: "⏱", label: "Upload timing", desc: "Knows exactly when your specific audience is watching." },
 ];
 
 export default function ProblemSection() {
     return (
-        <section className="py-16 sm:py-24 px-4 bg-[#0d0d14]">
-            <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-                <div className="absolute top-1/2 right-0 w-[400px] h-[400px] bg-indigo-600/8 rounded-full blur-[100px]" />
-            </div>
-            <div className="max-w-5xl mx-auto">
-                <div className="text-center mb-16">
-                    <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 mb-5">
-                        <span className="text-sm font-medium text-gray-400">The Problem</span>
-                    </div>
-                    <h2 className="text-3xl sm:text-4xl sm:text-5xl font-bold text-white mb-5 leading-tight">
-                        You&apos;re Not Losing Views.
-                        <br />
-                        <span className="shimmer-text">You&apos;re Missing Signals.</span>
-                    </h2>
-                    <p className="text-gray-400 text-lg max-w-xl mx-auto">
-                        By the time a topic &ldquo;looks hot,&rdquo; it&apos;s already saturated.
-                        What you need is what others can&apos;t see yet.
-                    </p>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-6">
-                    {/* What most creators do */}
-                    <div className="glass rounded-2xl p-8 border border-white/5">
-                        <div className="flex items-center gap-3 mb-7">
-                            <div className="w-9 h-9 bg-red-500/15 border border-red-500/20 rounded-xl flex items-center justify-center">
-                                <span className="text-red-400 text-sm font-bold">✗</span>
-                            </div>
-                            <h3 className="font-semibold text-gray-300">What most creators rely on:</h3>
-                        </div>
-                        <ul className="space-y-4">
-                            {problems.map((p) => (
-                                <li key={p} className="flex items-start gap-3 text-gray-400">
-                                    <span className="w-5 h-5 mt-0.5 rounded-full border border-gray-600 flex-shrink-0" />
-                                    {p}
-                                </li>
+        <section className="py-20 px-5 bg-[#0c0c0e]">
+            <div className="max-w-6xl mx-auto">
+                <div className="grid lg:grid-cols-2 gap-16">
+                    {/* Left — The problem */}
+                    <div>
+                        <p className="text-xs font-mono text-zinc-600 tracking-widest uppercase mb-5">The problem</p>
+                        <h2 className="text-3xl font-bold text-white mb-4 leading-tight">
+                            You're not losing views.<br />You're missing signals.
+                        </h2>
+                        <p className="text-zinc-500 text-base mb-8 leading-relaxed">
+                            By the time a topic "looks hot," it's already saturated. Most tools tell you what's already working — that's too late.
+                        </p>
+                        <div className="space-y-3">
+                            <p className="text-xs font-mono text-zinc-600 uppercase mb-3">What most creators rely on</p>
+                            {BEFORE.map((item, i) => (
+                                <div key={i} className="flex items-start gap-3 text-zinc-500">
+                                    <span className="text-zinc-700 mt-0.5 flex-shrink-0">–</span>
+                                    <span className="text-sm">{item}</span>
+                                </div>
                             ))}
-                        </ul>
+                        </div>
                     </div>
 
-                    {/* What AuraIQ provides */}
-                    <div className="glass-purple rounded-2xl p-8 border border-violet-500/20">
-                        <div className="flex items-center gap-3 mb-7">
-                            <div className="w-9 h-9 bg-violet-600 rounded-xl flex items-center justify-center">
-                                <span className="text-white text-sm font-bold">✓</span>
-                            </div>
-                            <h3 className="font-semibold text-gray-200">What AuraIQ provides:</h3>
-                        </div>
-                        <ul className="space-y-5">
-                            {solutions.map((s) => (
-                                <li key={s.label} className="flex items-start gap-3">
-                                    <span className="w-6 h-6 mt-0.5 rounded-full bg-violet-600 flex-shrink-0 flex items-center justify-center text-sm">
-                                        {s.icon}
-                                    </span>
+                    {/* Right — The solution */}
+                    <div className="border-l border-[#1e1e22] pl-12 lg:pl-16">
+                        <p className="text-xs font-mono text-emerald-400 tracking-widest uppercase mb-5">What GapTuber does</p>
+                        <div className="space-y-7">
+                            {AFTER.map(item => (
+                                <div key={item.label} className="flex gap-4">
+                                    <span className="text-xl flex-shrink-0 mt-0.5">{item.icon}</span>
                                     <div>
-                                        <div className="text-sm font-semibold text-white">{s.label}</div>
-                                        <div className="text-xs text-gray-400 mt-0.5">{s.desc}</div>
+                                        <p className="text-sm font-semibold text-zinc-200 mb-1">{item.label}</p>
+                                        <p className="text-sm text-zinc-500 leading-relaxed">{item.desc}</p>
                                     </div>
-                                </li>
+                                </div>
                             ))}
-                        </ul>
+                        </div>
                     </div>
                 </div>
             </div>

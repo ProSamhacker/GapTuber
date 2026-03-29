@@ -1,4 +1,5 @@
 import type { GapItem } from "@/db/schema";
+import { Eye, Video, Coins } from "lucide-react";
 
 interface ScanCardProps {
     keyword: string;
@@ -7,78 +8,70 @@ interface ScanCardProps {
     createdAt: Date;
 }
 
-function getScoreColor(score: number): string {
-    if (score >= 8) return "text-blue-600 bg-blue-50 border-blue-200";
-    if (score >= 6) return "text-blue-500 bg-blue-50 border-blue-100";
-    if (score >= 4) return "text-yellow-600 bg-yellow-50 border-yellow-200";
-    return "text-gray-500 bg-gray-50 border-gray-200";
-}
-
-function getScoreDotColor(score: number): string {
-    if (score >= 8) return "bg-blue-600";
-    if (score >= 6) return "bg-blue-500";
-    if (score >= 4) return "bg-yellow-500";
-    return "bg-gray-400";
-}
-
 export default function ScanCard({ keyword, gap, rank, createdAt }: ScanCardProps) {
-    const scoreColorClass = getScoreColor(gap.gapScore);
-    const dotColorClass = getScoreDotColor(gap.gapScore);
+    const isTopGap = gap.gapScore >= 8;
 
     return (
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm hover:border-blue-300 hover:shadow-md transition-all overflow-hidden">
+        <div className={`bg-[#111113] border rounded-xl overflow-hidden shadow-sm transition-all hover:border-[#2a2a30] ${isTopGap ? "border-emerald-600/30" : "border-[#1e1e22]"}`}>
             {/* Header */}
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                        Gap #{rank}
+            <div className="px-5 py-4 border-b border-[#1e1e22] bg-[#0c0c0e] flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">
+                        Gap_Result_0{rank}
                     </span>
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                    <span className="text-xs font-semibold text-zinc-200 truncate max-w-[200px]" title={keyword}>
                         {keyword}
                     </span>
                 </div>
-                <div className="flex items-center gap-2">
-                    <div className={`flex items-center gap-1.5 border rounded-full px-3 py-1 ${scoreColorClass}`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${dotColorClass}`} />
-                        <span className="text-xs font-bold">{gap.gapScore}/10</span>
-                    </div>
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono font-bold border ${isTopGap ? "bg-emerald-600/10 text-emerald-400 border-emerald-600/20" : "bg-[#1e1e22] text-zinc-400 border-[#2a2a30]"}`}>
+                    score:{gap.gapScore}
                 </div>
             </div>
 
-            <div className="p-5">
+            <div className="p-5 flex flex-col h-[calc(100%-73px)]">
                 {/* Title */}
-                <h3 className="font-semibold text-gray-900 text-base mb-3 leading-snug">
+                <h3 className="font-bold text-white text-sm mb-3 leading-snug">
                     {gap.title}
                 </h3>
 
                 {/* Reasoning */}
-                <p className="text-sm text-gray-500 mb-4 leading-relaxed">{gap.reasoning}</p>
+                <p className="text-[13px] text-zinc-500 mb-5 leading-relaxed tracking-wide">
+                    {gap.reasoning}
+                </p>
 
-                {/* Hook */}
-                <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-3">
-                    <div className="text-xs font-semibold text-blue-700 mb-1">🎣 Hook</div>
-                    <p className="text-sm text-gray-700 italic">&ldquo;{gap.hook}&rdquo;</p>
-                </div>
-
-                {/* Format + Monetization */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-                        <div className="text-xs font-semibold text-gray-400 mb-1">📹 Format</div>
-                        <p className="text-xs text-gray-700">{gap.format}</p>
+                <div className="mt-auto space-y-4">
+                    {/* Hook */}
+                    <div className="bg-[#0c0c0e] border border-[#1e1e22] rounded p-3">
+                        <div className="text-[10px] font-mono text-zinc-600 mb-1.5 uppercase">hook_string</div>
+                        <p className="text-[13px] text-zinc-300 italic">&ldquo;{gap.hook}&rdquo;</p>
                     </div>
-                    <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-                        <div className="text-xs font-semibold text-gray-400 mb-1">💰 Monetization</div>
-                        <p className="text-xs text-gray-700">{gap.monetizationAngle}</p>
-                    </div>
-                </div>
 
-                {/* Timestamp */}
-                <div className="mt-4 text-xs text-gray-300 text-right">
-                    {new Date(createdAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                    })}
+                    {/* Format + Monetization */}
+                    <div className="grid grid-cols-2 gap-3 pt-4 border-t border-[#1e1e22]">
+                        <div>
+                            <div className="text-[10px] font-mono text-zinc-600 mb-2 uppercase flex items-center gap-1">
+                                <Video className="w-3 h-3" /> format
+                            </div>
+                            <p className="text-xs text-zinc-300 font-medium">{gap.format}</p>
+                        </div>
+                        <div>
+                            <div className="text-[10px] font-mono text-zinc-600 mb-2 uppercase flex items-center gap-1">
+                                <Coins className="w-3 h-3" /> angle
+                            </div>
+                            <p className="text-xs text-zinc-300 font-medium truncate" title={gap.monetizationAngle}>{gap.monetizationAngle}</p>
+                        </div>
+                    </div>
+
+                    {/* Timestamp */}
+                    <div className="pt-2 flex justify-end">
+                        <span className="text-[10px] font-mono text-zinc-600 uppercase border border-[#1e1e22] px-2 py-0.5 rounded">
+                            {new Date(createdAt).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "2-digit",
+                                year: "numeric",
+                            }).toUpperCase()}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>

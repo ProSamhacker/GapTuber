@@ -13,7 +13,7 @@ function SignInContent() {
         <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center px-4 relative overflow-hidden">
             {/* Background glow */}
             <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[400px] bg-violet-600/15 rounded-full blur-[120px]" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[400px] bg-emerald-600/15 rounded-full blur-[120px]" />
                 <div className="absolute inset-0 bg-[linear-gradient(rgba(124,58,237,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(124,58,237,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
             </div>
 
@@ -22,8 +22,8 @@ function SignInContent() {
                 <div className="text-center mb-8">
                     <Link href="/" className="inline-flex flex-col items-center gap-1">
                         <div className="flex items-center gap-2.5">
-                            <img src="/auraiq-logo.png" alt="AuraIQ Logo" className="w-10 h-10 object-contain" />
-                            <span className="text-2xl font-extrabold text-white">AuraIQ</span>
+                            <img src="/auraiq-logo.png" alt="GapTuber Logo" className="w-10 h-10 object-contain" />
+                            <span className="text-2xl font-extrabold text-white">GapTuber</span>
                         </div>
                         <span className="text-xs text-gray-600 font-medium tracking-wider">by AurionStack</span>
                     </Link>
@@ -41,7 +41,7 @@ function SignInContent() {
                     {/* Google OAuth */}
                     <button
                         onClick={() => signIn("google", { callbackUrl })}
-                        className="w-full flex items-center justify-center gap-3 border border-white/10 bg-white/5 rounded-xl px-5 py-3.5 text-slate-300 font-medium hover:border-violet-500/40 hover:bg-violet-500/5 hover:text-white transition-all group"
+                        className="w-full flex items-center justify-center gap-3 border border-white/10 bg-white/5 rounded-xl px-5 py-3.5 text-slate-300 font-medium hover:border-emerald-500/40 hover:bg-emerald-500/5 hover:text-white transition-all group"
                     >
                         <svg className="w-5 h-5" viewBox="0 0 24 24">
                             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -54,11 +54,11 @@ function SignInContent() {
 
                     <p className="text-center text-xs text-slate-600 mt-6">
                         By continuing, you agree to our{" "}
-                        <Link href="/terms" className="text-violet-400 hover:text-violet-300 transition-colors">
+                        <Link href="/terms" className="text-emerald-400 hover:text-emerald-300 transition-colors">
                             Terms
                         </Link>{" "}
                         and{" "}
-                        <Link href="/privacy" className="text-violet-400 hover:text-violet-300 transition-colors">
+                        <Link href="/privacy" className="text-emerald-400 hover:text-emerald-300 transition-colors">
                             Privacy Policy
                         </Link>
                         .

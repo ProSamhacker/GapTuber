@@ -74,6 +74,35 @@ export async function getUserByEmail(email: string) {
     return user ?? null;
 }
 
+export async function getUserById(id: string) {
+    const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1);
+    return user ?? null;
+}
+
+export async function updateChannelYoutubeTokens(
+    channelId: string,
+    tokens: {
+        accessToken: string;
+        refreshToken?: string | null;
+        expiresAt?: Date | null;
+        youtubeChannelId?: string | null;
+    }
+) {
+    return db
+        .update(channels)
+        .set({
+            youtubeAccessToken: tokens.accessToken,
+            youtubeRefreshToken: tokens.refreshToken ?? null,
+            youtubeTokenExpiresAt: tokens.expiresAt ?? null,
+            youtubeChannelId: tokens.youtubeChannelId ?? null,
+        })
+        .where(eq(channels.id, channelId));
+}
+
 export async function updateChannelBlueprint(
     channelId: string,
     data: {

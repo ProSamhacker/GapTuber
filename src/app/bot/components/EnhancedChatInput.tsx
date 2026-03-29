@@ -134,7 +134,7 @@ export function EnhancedChatInput() {
                     <div className="flex flex-wrap gap-2 mb-2">
                         {attachments.map((file, i) => (
                             <div key={i} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg pl-2.5 pr-1 py-1.5">
-                                <FileText className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
+                                <FileText className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                                 <div className="min-w-0">
                                     <div className="text-xs truncate max-w-[160px] text-slate-200">{file.name}</div>
                                     <div className="text-[10px] text-slate-500">{formatSize(file.size)}</div>
@@ -148,7 +148,7 @@ export function EnhancedChatInput() {
                     <div className="flex items-center gap-2 text-[10px] text-slate-500">
                         <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
                             <div
-                                className={`h-full ${sizePct > 80 ? "bg-red-500" : sizePct > 60 ? "bg-amber-500" : "bg-violet-500"}`}
+                                className={`h-full ${sizePct > 80 ? "bg-red-500" : sizePct > 60 ? "bg-amber-500" : "bg-emerald-500"}`}
                                 style={{ width: `${sizePct}%` }}
                             />
                         </div>
@@ -169,7 +169,7 @@ export function EnhancedChatInput() {
 
             {/* Input Row */}
             <form onSubmit={handleSubmit}>
-                <div className="flex items-end gap-2 bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 focus-within:border-violet-500/50 focus-within:ring-1 focus-within:ring-violet-500/30 transition-all">
+                <div className="flex items-end gap-2 bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/30 transition-all">
                     {/* Left controls */}
                     <div className="flex items-center gap-1 flex-shrink-0 pb-0.5">
                         {/* File Attach */}
@@ -195,7 +195,7 @@ export function EnhancedChatInput() {
                                 handleSubmit(e as any);
                             }
                         }}
-                        placeholder={isListening ? "Listening..." : "Message AuraBot... (attach files to analyze)"}
+                        placeholder={isListening ? "Listening..." : "Message GapTuber Engine... (attach files to analyze)"}
                         className="flex-1 bg-transparent text-white text-sm resize-none outline-none py-2 min-h-[24px] max-h-[150px] overflow-y-auto placeholder-slate-500"
                         rows={1}
                         disabled={isGenerating}
@@ -227,7 +227,7 @@ export function EnhancedChatInput() {
                             <button
                                 type="submit"
                                 disabled={!input.trim() && attachments.length === 0}
-                                className="p-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="p-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 title="Send"
                             >
                                 <Send className="w-4.5 h-4.5" />
@@ -237,7 +237,7 @@ export function EnhancedChatInput() {
                 </div>
 
                 <div className="text-center mt-2 text-[10px] text-slate-600">
-                    Supports PDF, DOCX, PPTX, XLSX, images · Shift+Enter for new line · AuraBot can make mistakes
+                    Supports PDF, DOCX, PPTX, XLSX, images · Shift+Enter for new line · GapTuber Engine can make mistakes
                 </div>
             </form>
         </div>

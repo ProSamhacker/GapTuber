@@ -121,7 +121,7 @@ function DifficultyBadge({ level }: { level: string }) {
 
 function ViewPotentialBadge({ level }: { level: string }) {
     const colors: Record<string, string> = {
-        high: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+        high: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
         medium: "bg-blue-500/20 text-blue-300 border-blue-500/30",
         low: "bg-slate-500/20 text-slate-300 border-slate-500/30",
     };
@@ -224,8 +224,8 @@ export default function NewTuberPage() {
                                             onClick={() => setCategory(cat.value)}
                                             className={`p-3 text-left border-2 rounded-xl transition-all ${
                                                 category === cat.value
-                                                    ? "border-violet-600 bg-violet-50 text-violet-700 shadow-md shadow-violet-500/10"
-                                                    : "border-slate-200 hover:border-violet-300 text-slate-700"
+                                                    ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-md shadow-emerald-500/10"
+                                                    : "border-slate-200 hover:border-emerald-300 text-slate-700"
                                             }`}
                                         >
                                             <span className="text-lg mr-2">{cat.icon}</span>
@@ -240,7 +240,7 @@ export default function NewTuberPage() {
                                 <input
                                     type="text"
                                     placeholder="e.g. Building home lab servers, AI coding tools, Minimalist desk setups"
-                                    className="w-full p-4 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-violet-500/20 focus:border-violet-600 transition-all text-lg"
+                                    className="w-full p-4 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all text-lg"
                                     value={topic}
                                     onChange={(e) => setTopic(e.target.value)}
                                 />
@@ -256,7 +256,7 @@ export default function NewTuberPage() {
                                 type="button"
                                 disabled={!category || !topic || topic.length < 2}
                                 onClick={handleGenerate}
-                                className="w-full py-5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl font-bold text-lg hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-500/20 active:scale-[0.98]"
+                                className="w-full py-5 bg-gradient-to-r from-emerald-600 to-indigo-600 text-white rounded-xl font-bold text-lg hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98]"
                             >
                                 <Wand2 className="w-5 h-5" />
                                 Analyze Market & Generate Blueprint
@@ -274,15 +274,15 @@ export default function NewTuberPage() {
                         className="bg-white p-12 border border-slate-200 rounded-3xl shadow-sm text-center flex flex-col items-center justify-center min-h-[400px]"
                     >
                         <div className="relative mb-8">
-                            <div className="w-24 h-24 border-4 border-violet-100 rounded-full animate-pulse" />
-                            <div className="absolute inset-0 border-4 border-violet-600 border-t-transparent rounded-full animate-spin" />
-                            <Wand2 className="absolute inset-0 m-auto w-8 h-8 text-violet-600 animate-bounce" />
+                            <div className="w-24 h-24 border-4 border-emerald-100 rounded-full animate-pulse" />
+                            <div className="absolute inset-0 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                            <Wand2 className="absolute inset-0 m-auto w-8 h-8 text-emerald-600 animate-bounce" />
                         </div>
                         <h3 className="text-2xl font-bold text-slate-900 mb-2">Analyzing &ldquo;{topic}&rdquo; Market...</h3>
                         <p className="text-slate-500 mb-6">Scanning real YouTube data for your niche</p>
                         <div className="w-full max-w-md bg-slate-100 rounded-full h-2.5 mb-6 overflow-hidden">
                             <motion.div
-                                className="bg-gradient-to-r from-violet-600 to-indigo-600 h-2.5 rounded-full"
+                                className="bg-gradient-to-r from-emerald-600 to-indigo-600 h-2.5 rounded-full"
                                 initial={{ width: 0 }}
                                 animate={{ width: `${Math.min(generationStage * 20, 100)}%` }}
                                 transition={{ duration: 0.5 }}
@@ -293,7 +293,7 @@ export default function NewTuberPage() {
                                 const Icon = stage.icon;
                                 const active = generationStage > i;
                                 return (
-                                    <p key={i} className={`flex items-center justify-center gap-2 transition-all ${active ? "text-violet-600" : "opacity-40"}`}>
+                                    <p key={i} className={`flex items-center justify-center gap-2 transition-all ${active ? "text-emerald-600" : "opacity-40"}`}>
                                         {active ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                                         {stage.label}
                                     </p>
@@ -312,11 +312,11 @@ export default function NewTuberPage() {
                     >
                         {/* Market Analysis Panel */}
                         <div className="bg-[#0a0a0f] p-8 border border-white/10 rounded-3xl relative overflow-hidden">
-                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-600 via-indigo-500 to-purple-600" />
+                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-600 via-indigo-500 to-purple-600" />
 
                             <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
                                 <div>
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-violet-500/10 text-violet-300 rounded-full text-xs font-bold uppercase tracking-wider border border-violet-500/20 mb-3">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 text-emerald-300 rounded-full text-xs font-bold uppercase tracking-wider border border-emerald-500/20 mb-3">
                                         <TrendingUp className="w-3 h-3" /> Market Intelligence Report
                                     </div>
                                     <h2 className="text-2xl font-bold text-white mb-2">&ldquo;{topic}&rdquo; — YouTube Market Analysis</h2>
@@ -362,13 +362,13 @@ export default function NewTuberPage() {
                             </div>
 
                             {/* Estimated Views */}
-                            <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-4">
-                                <div className="text-xs font-bold text-violet-300 mb-2 flex items-center gap-2">
+                            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
+                                <div className="text-xs font-bold text-emerald-300 mb-2 flex items-center gap-2">
                                     <BarChart3 className="w-3 h-3" /> Estimated First Year Views
                                 </div>
                                 <div className="flex items-center gap-4 text-sm">
                                     <span className="text-slate-400">Conservative: <strong className="text-white">{blueprint.estimatedFirstYearViews.low.toLocaleString()}</strong></span>
-                                    <span className="text-violet-300">Expected: <strong className="text-white">{blueprint.estimatedFirstYearViews.mid.toLocaleString()}</strong></span>
+                                    <span className="text-emerald-300">Expected: <strong className="text-white">{blueprint.estimatedFirstYearViews.mid.toLocaleString()}</strong></span>
                                     <span className="text-slate-400">Optimistic: <strong className="text-white">{blueprint.estimatedFirstYearViews.high.toLocaleString()}</strong></span>
                                 </div>
                             </div>
@@ -401,12 +401,12 @@ export default function NewTuberPage() {
                                         onClick={() => setSelectedChannelName(cn.name)}
                                         className={`p-4 text-left border-2 rounded-xl transition-all ${
                                             selectedChannelName === cn.name
-                                                ? "border-violet-600 bg-violet-50 shadow-md shadow-violet-500/10"
-                                                : "border-slate-200 hover:border-violet-300"
+                                                ? "border-emerald-600 bg-emerald-50 shadow-md shadow-emerald-500/10"
+                                                : "border-slate-200 hover:border-emerald-300"
                                         }`}
                                     >
                                         <div className="font-bold text-slate-900 text-lg mb-1">{cn.name}</div>
-                                        <div className="text-xs text-violet-500 font-semibold mb-1">{cn.vibe}</div>
+                                        <div className="text-xs text-emerald-500 font-semibold mb-1">{cn.vibe}</div>
                                         <div className="text-xs text-slate-500 leading-relaxed">{cn.reasoning}</div>
                                     </button>
                                 ))}
@@ -427,7 +427,7 @@ export default function NewTuberPage() {
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     {blueprint.suggestedTags.slice(0, 15).map((tag, i) => (
-                                        <span key={i} className="px-3 py-1 bg-violet-50 text-violet-700 border border-violet-100 rounded-lg text-xs font-semibold">{tag}</span>
+                                        <span key={i} className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-xs font-semibold">{tag}</span>
                                     ))}
                                 </div>
                             </div>
@@ -440,15 +440,15 @@ export default function NewTuberPage() {
                             </h3>
                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {blueprint.videoIdeas.map((idea, idx) => (
-                                    <div key={idx} className="bg-white border-2 border-slate-200 rounded-2xl p-6 hover:border-violet-500 hover:shadow-lg transition-all group">
+                                    <div key={idx} className="bg-white border-2 border-slate-200 rounded-2xl p-6 hover:border-emerald-500 hover:shadow-lg transition-all group">
                                         <div className="flex items-center justify-between mb-3">
-                                            <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center font-bold text-sm">
+                                            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">
                                                 {idx + 1}
                                             </div>
                                             <ViewPotentialBadge level={idea.estimatedViewPotential} />
                                         </div>
 
-                                        <h4 className="font-bold text-slate-900 mb-2 leading-tight group-hover:text-violet-600 transition-colors text-sm">
+                                        <h4 className="font-bold text-slate-900 mb-2 leading-tight group-hover:text-emerald-600 transition-colors text-sm">
                                             {idea.title}
                                         </h4>
 
@@ -498,9 +498,9 @@ export default function NewTuberPage() {
 
                         {/* Content Strategy */}
                         {blueprint.contentStrategy && (
-                            <div className="bg-gradient-to-r from-violet-50 to-indigo-50 p-6 border border-violet-200 rounded-3xl">
+                            <div className="bg-gradient-to-r from-emerald-50 to-indigo-50 p-6 border border-emerald-200 rounded-3xl">
                                 <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
-                                    <Zap className="w-5 h-5 text-violet-600" /> First Month Strategy
+                                    <Zap className="w-5 h-5 text-emerald-600" /> First Month Strategy
                                 </h3>
                                 <p className="text-sm text-slate-700 leading-relaxed">{blueprint.contentStrategy}</p>
                             </div>

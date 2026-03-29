@@ -29,18 +29,14 @@ export default async function DashboardLayout({
     const activeChannel = allChannels[0];
 
     return (
-        <div className="min-h-screen bg-[#0a0a0f] flex flex-col md:flex-row">
+        <div className="min-h-screen bg-[#0c0c0e] flex flex-col md:flex-row">
             <DashboardSidebar
                 session={session}
                 allChannels={allChannels}
                 activeChannel={activeChannel}
             />
             <main className="flex-1 relative overflow-hidden flex flex-col">
-                {/* Ambient glow */}
-                <div className="fixed inset-0 pointer-events-none overflow-hidden h-full w-full">
-                    <div className="absolute top-0 left-1/4 w-[600px] h-[400px] bg-violet-600/5 rounded-full blur-[140px]" />
-                    <div className="absolute bottom-0 right-1/4 w-[400px] h-[300px] bg-indigo-600/4 rounded-full blur-[100px]" />
-                </div>
+
                 <div className="flex-1 overflow-y-auto relative z-10">
                     {children}
                 </div>

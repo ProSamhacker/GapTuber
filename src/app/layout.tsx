@@ -10,25 +10,25 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "AuraIQ — YouTube Content Gap Detection | AurionStack",
+  title: "GapTuber — YouTube Content Gap Detection | AurionStack",
   description:
-    "AuraIQ uses statistical algorithms and AI to detect high-opportunity YouTube content gaps before your competitors — powered by AurionStack.",
+    "GapTuber uses statistical algorithms and AI to detect high-opportunity YouTube content gaps before your competitors — powered by AurionStack.",
   keywords: [
     "YouTube content gaps",
     "AI content strategy",
     "YouTube SEO",
     "content opportunity detection",
-    "AuraIQ",
+    "GapTuber",
     "AurionStack",
     "YouTube gap analysis",
   ],
   authors: [{ name: "AurionStack" }],
   openGraph: {
-    title: "AuraIQ — Stop Guessing What to Upload Next",
+    title: "GapTuber — Stop Guessing What to Upload Next",
     description:
       "Strategic YouTube content gap detection for creators. Data-driven opportunity analysis powered by AI.",
     type: "website",
-    siteName: "AuraIQ",
+    siteName: "GapTuber",
   },
 };
 

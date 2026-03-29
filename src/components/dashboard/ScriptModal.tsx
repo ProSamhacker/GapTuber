@@ -81,7 +81,7 @@ export default function ScriptModal({ idea, onClose }: { idea: VideoIdea, onClos
                     <div className="flex items-center justify-between p-6 border-b border-gray-800 bg-[#1a1b1e] z-10">
                         <div>
                             <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                <span className="bg-violet-500/20 text-violet-400 p-1.5 rounded-lg">
+                                <span className="bg-emerald-500/20 text-emerald-400 p-1.5 rounded-lg">
                                     <PlayCircle className="w-5 h-5" />
                                 </span>
                                 AI Script Generator
@@ -100,7 +100,7 @@ export default function ScriptModal({ idea, onClose }: { idea: VideoIdea, onClos
                     <div className="flex-1 overflow-y-auto p-6 space-y-4">
                         {messages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-40 text-gray-400">
-                                <Loader2 className="w-8 h-8 animate-spin mb-4 text-violet-500" />
+                                <Loader2 className="w-8 h-8 animate-spin mb-4 text-emerald-500" />
                                 <p>Initializing AuraIQ AI Engine...</p>
                             </div>
                         )}
@@ -114,7 +114,7 @@ export default function ScriptModal({ idea, onClose }: { idea: VideoIdea, onClos
                         ))}
 
                         {isLoading && messages.length > 0 && (
-                            <div className="flex items-center gap-2 text-violet-400 text-sm font-medium mt-4">
+                            <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium mt-4">
                                 <Loader2 className="w-4 h-4 animate-spin" />
                                 <span>AuraIQ is writing...</span>
                             </div>
@@ -138,7 +138,7 @@ export default function ScriptModal({ idea, onClose }: { idea: VideoIdea, onClos
                             </button>
                             <button 
                                 onClick={onClose}
-                                className="flex items-center gap-2 px-5 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-bold transition-colors shadow-lg shadow-violet-500/20"
+                                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-colors shadow-lg shadow-emerald-500/20"
                             >
                                 <Save className="w-4 h-4" />
                                 Done

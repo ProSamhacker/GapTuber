@@ -31,7 +31,7 @@ export function BotSidebar() {
                             onClick={() => setActiveChatId(chat.id)}
                             className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
                                 activeChatId === chat.id 
-                                    ? "bg-violet-500/20 text-violet-300" 
+                                    ? "bg-emerald-500/20 text-emerald-300" 
                                     : "text-slate-400 hover:bg-white/5 hover:text-white"
                             }`}
                         >
@@ -45,7 +45,7 @@ export function BotSidebar() {
                                     deleteChat(chat.id);
                                 }}
                                 className={`text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity ${
-                                    activeChatId === chat.id ? "opacity-100 text-violet-400/50 hover:text-red-400" : ""
+                                    activeChatId === chat.id ? "opacity-100 text-emerald-400/50 hover:text-red-400" : ""
                                 }`}
                             >
                                 <Trash2 className="w-4 h-4" />

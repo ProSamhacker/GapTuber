@@ -5,7 +5,7 @@ import { EnhancedChatInput } from "@/app/bot/components/EnhancedChatInput";
 import { EnhancedChatBubble } from "@/app/bot/components/EnhancedChatBubble";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Bot, Sparkles, Plus, MessageSquare, Trash2, ChevronLeft, ChevronRight, ArrowDown } from "lucide-react";
+import { Bot, Plus, MessageSquare, Trash2, ChevronLeft, ChevronRight, ArrowDown } from "lucide-react";
 import type { BotMessage, BotChat } from "@/db/schema";
 
 // ── Chat History Sidebar ─────────────────────────────────────────────────────
@@ -13,24 +13,24 @@ function ChatHistorySidebar({ collapsed, setCollapsed }: { collapsed: boolean; s
     const { chats, activeChatId, setActiveChatId, createNewChat, deleteChat, isLoadingChats } = useChat();
 
     return (
-        <div className={`relative flex flex-col border-r border-white/[0.06] bg-black/20 transition-all duration-300 ${collapsed ? "w-0 overflow-hidden" : "w-64 shrink-0"}`}>
-            <div className="p-4 border-b border-white/[0.06]">
+        <div className={`relative flex flex-col border-r border-[#1e1e22] bg-[#0c0c0e] transition-all duration-300 ${collapsed ? "w-0 overflow-hidden border-r-0" : "w-64 shrink-0"}`}>
+            <div className="p-4 border-b border-[#1e1e22]">
                 <button
                     onClick={() => createNewChat()}
-                    className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white py-2.5 rounded-xl font-semibold text-sm transition-colors shadow-lg shadow-violet-500/20"
+                    className="w-full flex items-center justify-center gap-2 bg-[#111113] border border-[#1e1e22] hover:bg-[#1e1e22] text-white py-2.5 rounded font-mono text-xs uppercase tracking-widest transition-colors"
                 >
-                    <Plus className="w-4 h-4" /> New Chat
+                    <Plus className="w-4 h-4" /> New_Thread
                 </button>
             </div>
             <div className="flex-1 overflow-y-auto py-2">
                 {isLoadingChats ? (
                     <div className="flex flex-col gap-2 p-3">
-                        {[...Array(4)].map((_, i) => <div key={i} className="h-9 rounded-lg bg-white/5 animate-pulse" />)}
+                        {[...Array(4)].map((_, i) => <div key={i} className="h-9 rounded bg-[#1e1e22] animate-pulse" />)}
                     </div>
                 ) : chats.length === 0 ? (
                     <div className="text-center px-4 py-8">
-                        <MessageSquare className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                        <p className="text-xs text-slate-500">No chats yet.</p>
+                        <MessageSquare className="w-6 h-6 text-zinc-600 mx-auto mb-2" />
+                        <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">No history</p>
                     </div>
                 ) : (
                     <div className="px-2 space-y-0.5">
@@ -38,15 +38,15 @@ function ChatHistorySidebar({ collapsed, setCollapsed }: { collapsed: boolean; s
                             <div
                                 key={chat.id}
                                 onClick={() => setActiveChatId(chat.id)}
-                                className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${activeChatId === chat.id ? "bg-violet-500/15 text-violet-300 border border-violet-500/20" : "text-slate-400 hover:bg-white/5 hover:text-white border border-transparent"}`}
+                                className={`group flex items-center justify-between px-3 py-2.5 rounded cursor-pointer transition-all ${activeChatId === chat.id ? "bg-[#111113] text-white border border-[#1e1e22]" : "text-zinc-500 hover:bg-[#111113] hover:text-zinc-300 border border-transparent"}`}
                             >
                                 <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
-                                    <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${activeChatId === chat.id ? "text-violet-400" : "text-slate-500"}`} />
+                                    <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${activeChatId === chat.id ? "text-emerald-400" : "text-zinc-600"}`} />
                                     <span className="text-xs truncate">{chat.title}</span>
                                 </div>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); deleteChat(chat.id); }}
-                                    className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0 ml-1"
+                                    className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0 ml-1 bg-[#1e1e22] p-1 rounded"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -57,7 +57,7 @@ function ChatHistorySidebar({ collapsed, setCollapsed }: { collapsed: boolean; s
             </div>
             <button
                 onClick={() => setCollapsed(!collapsed)}
-                className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-6 h-6 bg-[#1a1b22] border border-white/10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:border-violet-500/50 transition-all shadow-lg"
+                className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-6 h-6 bg-[#111113] border border-[#1e1e22] rounded flex items-center justify-center text-zinc-400 hover:text-white transition-all hover:bg-[#1e1e22]"
             >
                 <ChevronLeft className="w-3.5 h-3.5" />
             </button>
@@ -79,16 +79,16 @@ function WelcomeScreen() {
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-2xl mx-auto w-full">
-            <div className="w-16 h-16 bg-gradient-to-br from-violet-600/30 to-indigo-600/30 rounded-2xl flex items-center justify-center mb-5 border border-violet-500/20">
-                <Bot className="w-8 h-8 text-violet-400" />
+            <div className="w-16 h-16 bg-[#111113] border border-[#1e1e22] rounded-xl flex items-center justify-center mb-5">
+                <Bot className="w-8 h-8 text-emerald-400" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">AuraIQ AI Studio</h2>
-            <p className="text-slate-400 text-sm text-center mb-8 max-w-sm">Channel-aware scriptwriter and growth strategist. Upload PDFs, images, DOCX, PPTX, and more.</p>
+            <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">AuraIQ AI Studio</h2>
+            <p className="text-zinc-500 text-sm text-center mb-8 max-w-sm">Channel-aware scriptwriter and growth strategist. Upload PDFs, images, DOCX, PPTX, and more.</p>
             <div className="grid grid-cols-2 gap-2.5 w-full">
                 {suggestions.map((s, i) => (
-                    <button key={i} onClick={() => sendMessage(s.text)} className="flex items-center gap-3 p-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl text-left hover:bg-white/[0.06] hover:border-violet-500/30 hover:text-white transition-all">
-                        <span className="text-lg">{s.icon}</span>
-                        <span className="text-xs text-slate-300 leading-snug">{s.text}</span>
+                    <button key={i} onClick={() => sendMessage(s.text)} className="flex items-center gap-3 p-3.5 bg-[#0c0c0e] border border-[#1e1e22] rounded text-left hover:bg-[#111113] hover:border-[#2a2a30] transition-colors">
+                        <span className="text-lg grayscale opacity-80">{s.icon}</span>
+                        <span className="text-xs text-zinc-400 leading-snug">{s.text}</span>
                     </button>
                 ))}
             </div>
@@ -132,21 +132,20 @@ function ChatArea() {
     if (!activeChatId && messages.length === 0) return <WelcomeScreen />;
 
     return (
-        <div className="relative flex-1 min-h-0 overflow-hidden flex flex-col">
+        <div className="relative flex-1 min-h-0 overflow-hidden flex flex-col bg-[#0c0c0e]">
             {/* Custom Scrollbar Styles */}
             <style jsx global>{`
                 .chat-scroll-area::-webkit-scrollbar {
-                    width: 5px;
+                    width: 6px;
                 }
                 .chat-scroll-area::-webkit-scrollbar-track {
                     background: transparent;
                 }
                 .chat-scroll-area::-webkit-scrollbar-thumb {
-                    background: rgba(139, 92, 246, 0.1);
-                    border-radius: 20px;
+                    background: #1e1e22;
                 }
                 .chat-scroll-area:hover::-webkit-scrollbar-thumb {
-                    background: rgba(139, 92, 246, 0.3);
+                    background: #2a2a30;
                 }
                 .chat-scroll-area {
                     scrollbar-gutter: stable;
@@ -168,7 +167,7 @@ function ChatArea() {
                                 <EnhancedChatBubble message={msg} />
                                 {isLastAI && isScript && (
                                     <div className="flex flex-wrap gap-2 px-14 py-3 mt-1 mb-4">
-                                        <div className="w-full text-xs font-semibold text-slate-500 mb-1">Quick Actions:</div>
+                                        <div className="w-full text-[10px] font-mono uppercase tracking-widest text-zinc-600 mb-1">Modify_Script:</div>
                                         {[
                                             "Make the video longer (detailed)",
                                             "Make the video shorter (concise)",
@@ -179,7 +178,7 @@ function ChatArea() {
                                             <button
                                                 key={suggestion}
                                                 onClick={() => sendMessage(suggestion)}
-                                                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:border-violet-500/30 hover:bg-violet-500/10 text-xs text-slate-300 hover:text-white transition-all shadow-sm"
+                                                className="px-3 py-1.5 rounded bg-[#111113] border border-[#1e1e22] hover:border-emerald-600/50 hover:bg-emerald-600/10 text-xs text-zinc-400 hover:text-emerald-300 transition-colors"
                                             >
                                                 {suggestion}
                                             </button>
@@ -191,13 +190,11 @@ function ChatArea() {
                     })}
                     {isGenerating && messages.length > 0 && messages[messages.length - 1]?.content === "" && (
                         <div className="flex items-center gap-3 px-5 py-4">
-                            <div className="w-8 h-8 rounded-lg bg-violet-600/20 border border-violet-500/20 flex items-center justify-center flex-shrink-0">
-                                <Bot className="w-4 h-4 text-violet-400" />
+                            <div className="w-8 h-8 rounded bg-[#111113] border border-[#1e1e22] flex items-center justify-center flex-shrink-0">
+                                <Bot className="w-4 h-4 text-emerald-400" />
                             </div>
-                            <div className="flex gap-1">
-                                {[0, 150, 300].map(delay => (
-                                    <div key={delay} className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: `${delay}ms` }} />
-                                ))}
+                            <div className="flex gap-1.5 text-xs font-mono text-zinc-500 uppercase tracking-widest bg-[#111113] border border-[#1e1e22] px-3 py-1.5 rounded">
+                                generating...
                             </div>
                         </div>
                     )}
@@ -209,10 +206,10 @@ function ChatArea() {
             {showScrollButton && (
                 <button
                     onClick={scrollToBottom}
-                    className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 bg-violet-600/90 hover:bg-violet-500 text-white backdrop-blur-md border border-violet-400/30 px-4 py-2 rounded-full text-xs font-semibold shadow-2xl shadow-violet-500/40 hover:-translate-y-0.5 transition-all flex items-center gap-2 group"
+                    className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 bg-[#111113] hover:bg-[#1e1e22] text-zinc-300 border border-[#2a2a30] px-4 py-2 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-colors flex items-center gap-2 group"
                 >
-                    <ArrowDown className="w-3.5 h-3.5 group-hover:animate-bounce" />
-                    <span>Jump to New Messages</span>
+                    <ArrowDown className="w-3.5 h-3.5" />
+                    <span>Scroll to bottom</span>
                 </button>
             )}
         </div>
@@ -222,24 +219,24 @@ function ChatArea() {
 // ── Bot Page Header ──────────────────────────────────────────────────────────
 function BotHeader({ title, collapsed, setCollapsed }: { title?: string; collapsed: boolean; setCollapsed: (v: boolean) => void }) {
     return (
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.06] bg-black/10 shrink-0">
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-[#1e1e22] bg-[#0c0c0e] shrink-0">
             {collapsed && (
-                <button onClick={() => setCollapsed(false)} className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                <button onClick={() => setCollapsed(false)} className="w-7 h-7 rounded bg-[#111113] border border-[#1e1e22] flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
                     <ChevronRight className="w-4 h-4" />
                 </button>
             )}
             <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 bg-violet-600/20 rounded-lg flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-violet-400" />
+                <div className="w-7 h-7 bg-[#111113] border border-[#1e1e22] rounded flex items-center justify-center">
+                    <Bot className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div>
-                    <p className="text-sm font-semibold text-white leading-none line-clamp-1">{title || "AuraBot AI Studio"}</p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Groq · Gemini Vision · File Analysis</p>
+                    <p className="text-sm font-semibold text-zinc-200 leading-none line-clamp-1">{title || "[ NEW_SESSION ]"}</p>
+                    <p className="text-[10px] font-mono text-zinc-600 uppercase mt-1 tracking-widest">GapTuber Engine · Vision Enabled</p>
                 </div>
             </div>
-            <div className="ml-auto flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                <span className="text-[10px] text-slate-500 font-medium">Online</span>
+            <div className="ml-auto flex items-center gap-1.5 bg-[#111113] border border-[#1e1e22] px-2 py-1 rounded">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-mono text-zinc-500 font-bold uppercase tracking-widest">Online</span>
             </div>
         </div>
     );
@@ -263,12 +260,14 @@ function BotPageInner() {
     const activeChat = chats.find(c => c.id === activeChatId);
 
     return (
-        <div className="flex h-screen md:h-[calc(100vh-0px)] bg-[#0c0d0f] overflow-hidden">
+        <div className="flex h-screen md:h-[calc(100vh-0px)] bg-[#0c0c0e] overflow-hidden">
             <ChatHistorySidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
             <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
                 <BotHeader title={activeChat?.title} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
                 <ChatArea />
-                <EnhancedChatInput />
+                <div className="bg-[#0c0c0e]">
+                    <EnhancedChatInput />
+                </div>
             </div>
         </div>
     );

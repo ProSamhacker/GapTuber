@@ -10,14 +10,14 @@ export function ChatBubble({ message }: { message: BotMessage }) {
         <div className={`flex gap-4 p-6 ${isAi ? "bg-[#1a1b1e] border-y border-white/5" : "bg-transparent"} w-full`}>
             {/* Avatar */}
             <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center mt-1 ${
-                isAi ? "bg-violet-600/20 text-violet-400" : "bg-white/10 text-white"
+                isAi ? "bg-emerald-600/20 text-emerald-400" : "bg-white/10 text-white"
             }`}>
                 {isAi ? <Bot className="w-5 h-5" /> : <User className="w-5 h-5" />}
             </div>
 
             {/* Message Content */}
             <div className="flex-1 min-w-0 max-w-4xl max-w-[85ch] mx-auto overflow-hidden">
-                <div className="prose prose-invert prose-violet max-w-none text-slate-300">
+                <div className="prose prose-invert prose-emerald max-w-none text-slate-300">
                     <ReactMarkdown 
                         remarkPlugins={[remarkGfm]}
                         components={{
@@ -27,12 +27,12 @@ export function ChatBubble({ message }: { message: BotMessage }) {
                             p: ({node, ...props}) => <p className="mb-4 leading-relaxed whitespace-pre-wrap" {...props} />,
                             ul: ({node, ...props}) => <ul className="list-disc list-inside mb-4 space-y-1" {...props} />,
                             ol: ({node, ...props}) => <ol className="list-decimal list-inside mb-4 space-y-1" {...props} />,
-                            strong: ({node, ...props}) => <strong className="font-bold text-violet-300" {...props} />,
+                            strong: ({node, ...props}) => <strong className="font-bold text-emerald-300" {...props} />,
                             code: ({className, children, ...props}) => {
                                 const match = /language-(\w+)/.exec(className || '');
                                 const isInline = !match && !className;
                                 return isInline ? (
-                                    <code className="bg-white/10 text-violet-300 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                                    <code className="bg-white/10 text-emerald-300 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
                                         {children}
                                     </code>
                                 ) : (

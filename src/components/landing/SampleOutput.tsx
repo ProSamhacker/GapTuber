@@ -1,106 +1,83 @@
+const SIGNALS = [
+    { k: "Velocity",    v: "High",   note: "2 trending videos" },
+    { k: "Saturation",  v: "Low",    note: "3 uploads / 30d" },
+    { k: "Frustration", v: "High",   note: "Outdated tutorials" },
+    { k: "Abandonment", v: "Medium", note: "No 2026 version" },
+];
+
+const WHY = [
+    "High comment frustration around outdated tutorials",
+    "Only 3 uploads in last 30 days — easy to rank",
+    "2 competitor videos showing strong velocity",
+    "No clear beginner-focused version exists",
+];
+
 export default function SampleOutput() {
     return (
-        <section id="sample-output" className="py-20 px-4 bg-white">
-            <div className="max-w-4xl mx-auto">
-                <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold text-gray-900 mb-4">
-                        What a Real Gap <span className="text-blue-600">Looks Like.</span>
-                    </h2>
-                    <p className="text-gray-500">
-                        This is an example output from a scan on the keyword &ldquo;RAG tutorial.&rdquo;
-                    </p>
+        <section id="sample-output" className="py-20 px-5 bg-[#111113] border-t border-[#1e1e22]">
+            <div className="max-w-6xl mx-auto">
+                <div className="mb-12">
+                    <p className="text-xs font-mono text-zinc-600 tracking-widest uppercase mb-5">Real output</p>
+                    <h2 className="text-3xl font-bold text-white mb-3">What a gap actually looks like.</h2>
+                    <p className="text-zinc-500 text-sm">This is a real scan result on the keyword <span className="font-mono text-zinc-400">"rag tutorial"</span>.</p>
                 </div>
 
-                <div className="bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all overflow-hidden">
-                    {/* Header bar */}
-                    <div className="bg-gradient-to-r from-blue-600 to-emerald-500 px-6 py-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 bg-blue-300 rounded-full radar-dot" />
-                            <span className="text-white text-sm font-medium">Gap #1 — Detected Opportunity</span>
+                <div className="grid lg:grid-cols-2 gap-5">
+                    {/* Terminal card */}
+                    <div className="bg-[#0c0c0e] border border-[#1e1e22] rounded-xl overflow-hidden font-mono">
+                        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#1e1e22]">
+                            <span className="w-2.5 h-2.5 rounded-full bg-zinc-800" />
+                            <span className="w-2.5 h-2.5 rounded-full bg-zinc-800" />
+                            <span className="w-2.5 h-2.5 rounded-full bg-zinc-800" />
+                            <span className="ml-2 text-xs text-zinc-700">output.json</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-white/80 text-xs">Gap Score</span>
-                            <span className="bg-white/20 text-white text-sm font-bold px-2.5 py-0.5 rounded-full">
-                                8.7 / 10
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="p-7">
-                        {/* Title */}
-                        <h3 className="text-xl font-bold text-gray-900 mb-5">
-                            &ldquo;Beginner-Friendly RAG Tutorial for Solo Developers (2026 Updated Stack)&rdquo;
-                        </h3>
-
-                        {/* Signal grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-                            {[
-                                { label: "Velocity", value: "High", sub: "2 videos trending" },
-                                { label: "Saturation", value: "Low", sub: "3 uploads / 30d" },
-                                { label: "Frustration", value: "High", sub: "Outdated tutorials" },
-                                { label: "Abandonment", value: "Medium", sub: "No 2026 version" },
-                            ].map((metric) => (
-                                <div key={metric.label} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                                    <div className="text-xs text-gray-400 font-medium mb-1">{metric.label}</div>
-                                    <div className="text-sm font-bold text-gray-900">{metric.value}</div>
-                                    <div className="text-xs text-gray-500 mt-0.5">{metric.sub}</div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Why This Works */}
-                        <div className="mb-5">
-                            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                                Why This Works
-                            </h4>
-                            <ul className="space-y-1.5">
-                                {[
-                                    "High comment frustration around outdated tutorials",
-                                    "Only 3 uploads in last 30 days",
-                                    "2 competitor videos showing strong velocity",
-                                    "No clear beginner-focused version exists",
-                                ].map((reason) => (
-                                    <li key={reason} className="flex items-start gap-2 text-sm text-gray-600">
-                                        <span className="w-4 h-4 bg-blue-100 text-blue-700 rounded-full flex-shrink-0 flex items-center justify-center mt-0.5 text-xs font-bold">
-                                            ✓
-                                        </span>
-                                        {reason}
-                                    </li>
+                        <div className="p-5 text-sm space-y-4">
+                            <div>
+                                <span className="text-zinc-700">gap_score: </span>
+                                <span className="text-emerald-400 font-bold text-lg">8.7 / 10</span>
+                            </div>
+                            <div>
+                                <span className="text-zinc-700">title: </span>
+                                <span className="text-zinc-300">"Beginner-Friendly RAG for Solo Devs (2026 Stack)"</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                                {SIGNALS.map(s => (
+                                    <div key={s.k} className="border border-[#1e1e22] rounded-lg px-3 py-2">
+                                        <p className="text-[10px] text-zinc-700 mb-1">{s.k.toLowerCase()}</p>
+                                        <p className={`text-xs font-semibold ${s.v === "High" ? "text-emerald-400" : s.v === "Low" ? "text-amber-400" : "text-zinc-400"}`}>{s.v.toLowerCase()}</p>
+                                        <p className="text-[10px] text-zinc-700 mt-0.5">{s.note}</p>
+                                    </div>
                                 ))}
-                            </ul>
-                        </div>
-
-                        {/* Hook & Monetization */}
-                        <div className="grid sm:grid-cols-2 gap-4">
-                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                                <div className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-2">
-                                    🎣 Suggested Hook
-                                </div>
-                                <p className="text-sm text-gray-700 italic">
-                                    &ldquo;Stop Copy-Pasting RAG Tutorials That Don&apos;t Work in 2026.&rdquo;
-                                </p>
                             </div>
-                            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                                    💰 Monetization Angle
-                                </div>
-                                <p className="text-sm text-gray-700">
-                                    Promote hosting provider + vector database tools (e.g., Pinecone, Supabase pgvector).
-                                </p>
+                            <div className="pt-1">
+                                <span className="text-zinc-700">hook: </span>
+                                <span className="text-zinc-400 italic">"Stop using RAG tutorials from 2023."</span>
                             </div>
-                        </div>
-
-                        {/* Format */}
-                        <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
-                            <span className="font-medium text-gray-700">📹 Format:</span>
-                            15-min beginner tutorial with timestamps + GitHub repo link
+                            <div>
+                                <span className="text-zinc-700">format: </span>
+                                <span className="text-zinc-400">15-min beginner tutorial + GitHub repo</span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <p className="text-center text-sm text-gray-400 mt-6">
-                    This is strategic advantage. Not another keyword suggestion.
-                </p>
+                    {/* Why this works */}
+                    <div className="flex flex-col justify-between">
+                        <div>
+                            <p className="text-xs font-mono text-zinc-600 uppercase tracking-widest mb-5">Why this works</p>
+                            <div className="space-y-4">
+                                {WHY.map((reason, i) => (
+                                    <div key={i} className="flex items-start gap-4 pb-4 border-b border-[#1e1e22] last:border-0">
+                                        <span className="text-xs font-mono text-zinc-700 flex-shrink-0 w-5 mt-0.5">0{i + 1}</span>
+                                        <p className="text-sm text-zinc-400 leading-relaxed">{reason}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <p className="text-xs text-zinc-700 mt-8 font-mono">
+                            This is strategic advantage — not another keyword suggestion.
+                        </p>
+                    </div>
+                </div>
             </div>
         </section>
     );
