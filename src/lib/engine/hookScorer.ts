@@ -39,7 +39,7 @@ const PATTERN_INTERRUPTS = [
 // ─── Open Loop Indicators ─────────────────────────────────────────────────────
 const OPEN_LOOP_PHRASES = [
     "by the end", "at the end", "before we finish", "stick around",
-    "stay until", "in this video", "i'll show you", "i'll reveal",
+    "stay until", "stay tuned", "in this video", "i'll show you", "i'll reveal",
     "you'll discover", "you'll learn", "we'll cover", "we're going to",
     "the answer is", "the secret is", "it's not what you think",
     "but first", "here's the thing", "here's what", "this is why",
@@ -51,14 +51,28 @@ const YEAR_PATTERN = /\b(20\d{2})\b/;
 
 // ─── Scores a script's opening hook ───────────────────────────────────────────
 export function scoreHookStrength(scriptText: string): HookScoreResult {
+    // For Markdown-table scripts, score the hook voiceover rather than the title,
+    // table headers, timestamps, and visual-direction cells.
+    const tableHookRow = scriptText.split(/\r?\n/).find(line =>
+        /^\s*\|/.test(line) && /\bhook\b/i.test(line) && line.split("|").length >= 5
+    );
+    const extractedHook = tableHookRow
+        ? tableHookRow.split("|").filter(Boolean).at(-1) ?? tableHookRow
+        : scriptText;
+    const cleanHook = extractedHook
+        .replace(/<[^>]+>/g, " ")
+        .replace(/[*_`>#]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
     // Extract the first ~75 words (approx. 30 seconds of speech)
-    const allWords = scriptText.trim().split(/\s+/);
+    const allWords = cleanHook.split(/\s+/);
     const hookWords = allWords.slice(0, 75);
     const hookText = hookWords.join(" ").toLowerCase();
 
     // First sentence heuristic: up to first sentence-ending punctuation
-    const firstSentenceMatch = scriptText.match(/^[^.!?]+[.!?]/);
-    const firstSentence = firstSentenceMatch ? firstSentenceMatch[0] : scriptText.slice(0, 120);
+    const firstSentenceMatch = cleanHook.match(/^[^.!?]+[.!?]/);
+    const firstSentence = firstSentenceMatch ? firstSentenceMatch[0] : cleanHook.slice(0, 120);
     const firstSentenceWordCount = firstSentence.trim().split(/\s+/).length;
 
     // ─── Signal Detection ─────────────────────────────────────────────────────
@@ -105,11 +119,11 @@ export function scoreHookStrength(scriptText: string): HookScoreResult {
     } else if (!hasOpenLoop) {
         recommendation = "Add an open loop — tease what the viewer will gain by the end ('By the end you'll know exactly how to...')";
     } else if (!hasStatOrFact) {
-        recommendation = "Add a specific number or stat in the first 30 seconds to build immediate credibility.";
+        recommendation = "Add a specific, truthful detail in the first 30 seconds. Use a number only when it is verified or part of the stated challenge.";
     } else if (!hasDirect2ndPerson) {
         recommendation = "Address the viewer directly with 'you' — this creates personal connection and reduces drop-off.";
     } else if (firstSentenceWordCount < 8) {
-        recommendation = "Your opening sentence is too short. Expand it slightly to give the algorithm time to index the hook.";
+        recommendation = "Your opening sentence is too short to establish the promise. Add one concrete viewer benefit.";
     } else if (firstSentenceWordCount > 20) {
         recommendation = "Your opening sentence is too long. Trim to ≤15 words for maximum punchiness and retention.";
     } else {

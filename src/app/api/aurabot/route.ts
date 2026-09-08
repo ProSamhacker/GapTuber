@@ -15,6 +15,7 @@ import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
 import { scoreHookStrength } from "@/lib/engine/hookScorer";
 import { env } from "@/env";
+import { buildScriptGroundingRules } from "@/lib/ai-grounding";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // Fluid Compute: 5 minute max on Vercel Hobby plan
@@ -97,6 +98,8 @@ async function extractXLSXText(buffer: ArrayBuffer): Promise<string> {
 
 async function buildSystemPrompt(channelId?: string | null, userId?: string | null): Promise<string> {
     const base = `You are GapTuber AI — an expert YouTube scriptwriter, growth strategist, and content analyst.
+
+${buildScriptGroundingRules()}
 
 **CRITICAL**: When users upload files (PDF, PPTX, DOCX, XLSX, images), the content is automatically extracted and included in the message marked with "--- File: filename ---". You CAN see and analyze this content directly. Do NOT say you cannot access files.
 
@@ -356,7 +359,7 @@ export async function POST(req: NextRequest) {
                             const gradeEmoji = { S: "🔥", A: "✅", B: "🟡", C: "🟠", D: "🔴" }[hookResult.grade];
                             finalText = text + `\n\n---\n**🎯 Hook Strength Audit** — Grade: **${hookResult.grade}** ${gradeEmoji} (${hookResult.score}/100)\n`
                                 + `> **Top Fix:** ${hookResult.recommendation}\n`
-                                + `> Pattern Interrupt: ${hookResult.hasPatternInterrupt ? "✅" : "❌"} | Open Loop: ${hookResult.hasOpenLoop ? "✅" : "❌"} | Stat/Fact: ${hookResult.hasStatOrFact ? "✅" : "❌"} | Viewer-Addressed: ${hookResult.hasDirect2ndPerson ? "✅" : "❌"}`;
+                                + `> Pattern Interrupt: ${hookResult.hasPatternInterrupt ? "✅" : "❌"} | Open Loop: ${hookResult.hasOpenLoop ? "✅" : "❌"} | Specific Number: ${hookResult.hasStatOrFact ? "✅" : "❌"} | Viewer-Addressed: ${hookResult.hasDirect2ndPerson ? "✅" : "❌"}`;
                         } catch { /* non-critical */ }
                     }
                     if (chatId && finalText) {

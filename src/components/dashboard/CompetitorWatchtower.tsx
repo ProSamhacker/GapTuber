@@ -120,7 +120,12 @@ Target Duration: 10-15 min
 2. **Pacing & Timestamps**: Group the script into logical scenes or chapters with their estimated timestamp ranges (e.g., [0:00 - 1:30], [1:30 - 3:00]).
 3. **Structure**: Do NOT duplicate scene titles. Each scene should be a single row in the table, containing all visuals and audio for that section.
 4. **FORMAT**: Output the actual script as a single **Markdown Table** — no plain paragraphs.
-5. **Table Columns**: | Scene / Section | Timestamp | Visuals / B-Roll | Audio / Voiceover |
+  5. **Table Columns**: | Scene / Section | Timestamp | Visuals / B-Roll | Audio / Voiceover |
+
+FACTUAL SAFETY:
+- This is a pre-production script. Do not invent tools, people, follower counts, sponsors, offers, scores, view results, quotes, or statistics.
+- If the concept is an experiment, do not declare a winner before filming. Use [INSERT VERIFIED RESULT], [CREATOR NAME], and [TOOL ACTUALLY USED] placeholders, plus conditional result narration.
+- Do not call anything current, trending, latest, or free unless that exact claim is included in the evidence above.
 
 Ensure high-retention storytelling with a strong CTA. Generate the complete script now.`;
 }

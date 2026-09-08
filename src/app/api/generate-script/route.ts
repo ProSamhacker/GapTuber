@@ -4,6 +4,7 @@ import { createBotMessage, getChannelById, getChannelScans } from '@/db/queries'
 import { auth } from '@/auth';
 import { getUserByEmail, getChannelsByUserId, deductUserCredits } from '@/db/queries';
 import type { GapItem, ScanAnalytics } from '@/db/schema';
+import { buildScriptGroundingRules } from '@/lib/ai-grounding';
 
 // Allow streaming responses up to 60 seconds
 export const maxDuration = 60; // Vercel Hobby plan max for streaming/Next.js config
@@ -12,7 +13,9 @@ export const maxDuration = 60; // Vercel Hobby plan max for streaming/Next.js co
 // ─── Build Channel-Aware System Prompt ───────────────────────────────────────
 
 async function buildChannelAwarePrompt(channelId?: string, userId?: string): Promise<string> {
-    const basePrompt = `You are GapTuber AI — an expert YouTube scriptwriter, growth strategist, and content analyst. You specialize in crafting highly engaging, fast-paced, and retention-optimized scripts for creators. Do not include introductory fluff; get straight into the answer or script.`;
+    const basePrompt = `You are GapTuber AI — an expert YouTube scriptwriter, growth strategist, and content analyst. You specialize in crafting highly engaging, fast-paced, and retention-optimized scripts for creators. Do not include introductory fluff; get straight into the answer or script.
+
+${buildScriptGroundingRules()}`;
 
     if (!channelId && !userId) return basePrompt;
 

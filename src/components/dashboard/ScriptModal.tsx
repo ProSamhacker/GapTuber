@@ -16,7 +16,9 @@ export default function ScriptModal({ idea, onClose }: { idea: VideoIdea, onClos
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        const prompt = `Write a detailed YouTube script for a ${idea.format} video titled "${idea.title}". The hook must be: "${idea.hook}". Target duration: ${idea.duration}. Include sections for Intro, Main Content, and Outro/Call to action.`;
+        const prompt = `Write a detailed YouTube script for a ${idea.format} video titled "${idea.title}". The hook must be: "${idea.hook}". Target duration: ${idea.duration}. Include sections for Intro, Main Content, and Outro/Call to action.
+
+This is a pre-production script. Never invent people, tools, follower counts, sponsors, offers, statistics, scores, views, or experiment results. Use explicit placeholders for facts that must be obtained during filming, and do not declare an experiment winner before verified results exist.`;
         generateScript(prompt);
     }, [idea]);
 
