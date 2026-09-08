@@ -1,54 +1,104 @@
 "use client";
 
 import React from "react";
+import dynamic from "next/dynamic";
 import type { GapItem, ScanAnalytics } from "@/db/schema";
 import {
-    Zap, Users, Film, DollarSign, Search, ShieldAlert, Brain,
+    Users, Film, DollarSign, ShieldAlert, Brain,
     ChevronDown, Loader2, BookmarkCheck, Bookmark,
-    TrendingUp, Clock, BarChart2, Crosshair
+    TrendingUp, Clock, BarChart2, Crosshair,
+    Target, FileText, AlertCircle, CheckCircle2,
+    MessageSquare, Lightbulb, ArrowRight,
 } from "lucide-react";
 
-// ─── Score Ring ────────────────────────────────────────────────────────────────
-// A clean circular score display replacing the emoji metric cards
+// Lazy-load the heavy ScriptModal so it's not in the initial bundle
+const ScriptModal = dynamic(() => import("./ScriptModal"), { ssr: false });
 
-function ScoreRing({ score, label, color }: { score: number; label: string; color: string }) {
-    const radius = 36;
+// ─── Score helpers ─────────────────────────────────────────────────────────────
+
+/** Convert 1–10 gapScore to 0–100 display score */
+function toDisplayScore(raw: number): number {
+    return Math.round(Math.min(Math.max(raw, 0), 10) * 10);
+}
+
+function getScoreLabel(score100: number): { label: string; tier: "strong" | "good" | "experimental" } {
+    if (score100 >= 75) return { label: "Strong Opportunity", tier: "strong" };
+    if (score100 >= 55) return { label: "Good Opportunity",   tier: "good" };
+    return                      { label: "Experimental",       tier: "experimental" };
+}
+
+function getTierColors(tier: "strong" | "good" | "experimental") {
+    switch (tier) {
+        case "strong":       return { ring: "#34d399", text: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-500/25", glow: "shadow-emerald-500/10" };
+        case "good":         return { ring: "#fbbf24", text: "text-amber-300",   bg: "bg-amber-500/10",   border: "border-amber-500/25",   glow: "" };
+        case "experimental": return { ring: "#52525b", text: "text-zinc-400",    bg: "bg-zinc-800/50",    border: "border-zinc-700/40",    glow: "" };
+    }
+}
+
+// ─── Hero Score Ring ───────────────────────────────────────────────────────────
+
+function HeroScoreRing({ score100, tier }: { score100: number; tier: "strong" | "good" | "experimental" }) {
+    const colors = getTierColors(tier);
+    const radius = 42;
     const circumference = 2 * Math.PI * radius;
-    const filled = (score / 10) * circumference;
+    const filled = (score100 / 100) * circumference;
 
     return (
-        <div className="flex flex-col items-center gap-2">
-            <div className="relative w-24 h-24">
-                {/* Glow effect behind the ring */}
-                <div
-                    className="absolute inset-2 rounded-full blur-xl opacity-20"
-                    style={{ background: color }}
+        <div className="relative w-[100px] h-[100px] shrink-0">
+            {/* Glow */}
+            <div
+                className="absolute inset-3 rounded-full blur-xl opacity-25"
+                style={{ background: colors.ring }}
+            />
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r={radius} fill="none" stroke="#1e1e22" strokeWidth="5" />
+                <circle
+                    cx="50" cy="50" r={radius} fill="none"
+                    stroke={colors.ring} strokeWidth="5"
+                    strokeDasharray={`${filled} ${circumference}`}
+                    strokeLinecap="round"
+                    style={{ filter: `drop-shadow(0 0 8px ${colors.ring}80)`, transition: "stroke-dasharray 0.6s ease" }}
                 />
-                <svg className="w-full h-full -rotate-90" viewBox="0 0 96 96">
-                    <circle cx="48" cy="48" r={radius} fill="none" stroke="#1e1e22" strokeWidth="4" />
-                    <circle
-                        cx="48" cy="48" r={radius} fill="none"
-                        stroke={color} strokeWidth="4"
-                        strokeDasharray={`${filled} ${circumference}`}
-                        strokeLinecap="round"
-                        style={{ filter: `drop-shadow(0 0 6px ${color}80)` }}
-                    />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-xl font-bold text-white tabular-nums leading-none" style={{ color }}>
-                        {score.toFixed(1)}
-                    </span>
-                    <span className="text-[8px] font-mono text-zinc-600 mt-0.5">/10</span>
-                </div>
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-extrabold tabular-nums leading-none" style={{ color: colors.ring }}>
+                    {score100}
+                </span>
+                <span className="text-[9px] font-mono text-zinc-600 mt-0.5">/100</span>
             </div>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest text-center">
-                {label}
-            </span>
         </div>
     );
 }
 
-// ─── Signal Bar ────────────────────────────────────────────────────────────────
+// ─── Score Sub-Bar ─────────────────────────────────────────────────────────────
+
+function ScoreSubBar({ label, score, max = 10, insight }: { label: string; score: number; max?: number; insight?: string }) {
+    const pct = Math.min((score / max) * 100, 100);
+    const color =
+        pct >= 70 ? "bg-emerald-500" :
+        pct >= 45 ? "bg-amber-500" :
+                    "bg-zinc-600";
+
+    return (
+        <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wide">{label}</span>
+                <span className="text-[10px] font-mono text-zinc-400 tabular-nums">{Math.round(pct)}</span>
+            </div>
+            <div className="h-1.5 bg-[#1e1e22] rounded-full overflow-hidden">
+                <div
+                    className={`h-full rounded-full transition-all duration-700 ${color}`}
+                    style={{ width: `${pct}%` }}
+                />
+            </div>
+            {insight && (
+                <p className="text-[9px] text-zinc-600 leading-relaxed">{insight}</p>
+            )}
+        </div>
+    );
+}
+
+// ─── Signal Bar (for AnalyticsPanel) ──────────────────────────────────────────
 
 function SignalBar({ label, score, max = 100 }: { label: string; score: number; max?: number }) {
     const pct = Math.min((score / max) * 100, 100);
@@ -73,6 +123,7 @@ function SignalBar({ label, score, max = 100 }: { label: string; score: number; 
 export function MetricCard({ value, label, icon }: { value: string; label: string; icon: string }) {
     return (
         <div className="rounded-xl p-3 border border-[#1e1e22] bg-[#0c0c0e] text-center">
+            <div className="mb-1 text-base" aria-hidden="true">{icon}</div>
             <div className="text-xl font-bold text-white tabular-nums leading-none tracking-tight">{value}</div>
             <div className="text-[9px] font-mono text-zinc-600 mt-1.5 uppercase tracking-widest">{label}</div>
         </div>
@@ -84,20 +135,25 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
     const r = (v: number | null | undefined) => Math.round((v ?? 0) * 10);
 
     const rings = [
-        { score: s(analytics.velocity?.score),    label: "Growth Speed",   color: "#34d399" },
+        { score: s(analytics.velocity?.score),    label: "View Velocity",  color: "#34d399" },
         { score: s(analytics.saturation?.score),  label: "Opportunity",    color: "#60a5fa" },
-        { score: s(analytics.frustration?.score), label: "Viewer Demand",  color: "#f87171" },
-        { score: s(analytics.trend?.score),       label: "Trend Strength", color: "#a78bfa" },
+        { score: s(analytics.frustration?.score), label: "Comment Need",   color: "#f87171" },
+        { score: s(analytics.trend?.score),       label: "Recent Direction", color: "#a78bfa" },
     ];
 
     const bars = [
-        { label: "Growth Speed",    score: r(analytics.velocity?.score) },
+        { label: "View Velocity",   score: r(analytics.velocity?.score) },
         { label: "Opportunity",     score: r(analytics.saturation?.score) },
-        { label: "Viewer Demand",   score: r(analytics.frustration?.score) },
-        { label: "Trend Strength",  score: r(analytics.trend?.score) },
+        { label: "Comment Need",    score: r(analytics.frustration?.score) },
+        { label: "Recent Direction", score: r(analytics.trend?.score) },
         { label: "Competition",     score: r(analytics.competition?.score) },
         { label: "Engagement",      score: r(analytics.engagement?.score) },
     ];
+
+    // Confidence means sample coverage, not how high the opportunity scores are.
+    const confidence = analytics.provenance?.dataConfidence;
+    const confLabel = confidence == null ? "Not recorded" : confidence >= 70 ? "High" : confidence >= 45 ? "Moderate" : "Low";
+    const confColor = confidence == null ? "text-zinc-500" : confidence >= 70 ? "text-emerald-400" : confidence >= 45 ? "text-amber-400" : "text-zinc-500";
 
     return (
         <div className="bg-[#0f0f11] border border-[#1e1e22] rounded-2xl overflow-hidden mb-8">
@@ -108,19 +164,66 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
                     <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Opportunity Breakdown</span>
                     <p className="text-[9px] text-zinc-700 mt-0.5">Higher scores = stronger opportunity in that area</p>
                 </div>
-                {analytics.revenueEstimate && (
-                    <span className="text-xs font-bold text-emerald-400 font-mono">
-                        ${analytics.revenueEstimate.low.toLocaleString()}–${analytics.revenueEstimate.high.toLocaleString()}
-                        <span className="text-zinc-600 font-normal ml-1">estimated monthly earnings</span>
-                    </span>
-                )}
+                <div className="flex items-center gap-4">
+                    <div className="text-right">
+                        <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Data coverage</p>
+                        <p className={`text-xs font-bold font-mono ${confColor}`}>
+                            {confidence == null ? confLabel : `${confLabel} · ${confidence}%`}
+                        </p>
+                    </div>
+                </div>
             </div>
 
             <div className="p-5 space-y-6">
 
+                {analytics.provenance && (
+                    <div className="grid gap-3 rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-4 md:grid-cols-[1fr_auto] md:items-center">
+                        <div>
+                            <p className="text-xs font-semibold text-sky-300">Grounded in public YouTube data</p>
+                            <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                                {analytics.provenance.sample.videos} videos · {analytics.provenance.sample.searchResults} search results · {analytics.provenance.sample.comments} comments · scan generated {new Date(analytics.provenance.generatedAt).toLocaleString()} · source cache up to {analytics.provenance.cacheMaxAgeMinutes} min
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-zinc-500">{analytics.provenance.aiRole}</p>
+                        </div>
+                        <span className="whitespace-nowrap rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-300">
+                            {analytics.provenance.source}
+                        </span>
+                    </div>
+                )}
+
                 {/* Score rings row */}
                 <div className="flex items-start justify-around gap-4">
-                    {rings.map(r => <ScoreRing key={r.label} {...r} />)}
+                    {rings.map(r => {
+                        const radius = 36;
+                        const circumference = 2 * Math.PI * radius;
+                        const filled = (r.score / 10) * circumference;
+                        return (
+                            <div key={r.label} className="flex flex-col items-center gap-2">
+                                <div className="relative w-24 h-24">
+                                    <div className="absolute inset-2 rounded-full blur-xl opacity-20" style={{ background: r.color }} />
+                                    <svg className="w-full h-full -rotate-90" viewBox="0 0 96 96">
+                                        <circle cx="48" cy="48" r={radius} fill="none" stroke="#1e1e22" strokeWidth="4" />
+                                        <circle
+                                            cx="48" cy="48" r={radius} fill="none"
+                                            stroke={r.color} strokeWidth="4"
+                                            strokeDasharray={`${filled} ${circumference}`}
+                                            strokeLinecap="round"
+                                            style={{ filter: `drop-shadow(0 0 6px ${r.color}80)` }}
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-xl font-bold text-white tabular-nums leading-none" style={{ color: r.color }}>
+                                            {r.score.toFixed(1)}
+                                        </span>
+                                        <span className="text-[8px] font-mono text-zinc-600 mt-0.5">/10</span>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest text-center">
+                                    {r.label}
+                                </span>
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* Two-col: bars + insights */}
@@ -132,16 +235,15 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
                         {bars.map(b => <SignalBar key={b.label} {...b} />)}
                     </div>
 
-                    {/* Key insights — only the most actionable */}
+                    {/* Key insights */}
                     <div className="space-y-3">
                         <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">What to do next</p>
 
-                        {/* Best upload window */}
                         {analytics.uploadSchedule?.bestDay && (
                             <div className="flex items-start gap-3 p-3 bg-[#111113] border border-[#1e1e22] rounded-xl">
                                 <Clock className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" />
                                 <div>
-                                    <p className="text-[10px] font-mono text-zinc-500 uppercase mb-0.5">Best Time to Post</p>
+                                    <p className="text-[10px] font-mono text-zinc-500 uppercase mb-0.5">Observed publishing window</p>
                                     <p className="text-xs font-semibold text-zinc-200">
                                         {analytics.uploadSchedule.bestDay} · {analytics.uploadSchedule.bestHour}:00 UTC
                                     </p>
@@ -154,7 +256,6 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
                             </div>
                         )}
 
-                        {/* Competition difficulty */}
                         {analytics.competition?.difficulty && (
                             <div className="flex items-start gap-3 p-3 bg-[#111113] border border-[#1e1e22] rounded-xl">
                                 <BarChart2 className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" />
@@ -170,7 +271,6 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
                             </div>
                         )}
 
-                        {/* Velocity trend */}
                         {analytics.trend?.trend && (
                             <div className="flex items-start gap-3 p-3 bg-[#111113] border border-[#1e1e22] rounded-xl">
                                 <TrendingUp className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" />
@@ -188,7 +288,17 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
                     </div>
                 </div>
 
-                {/* Pain Points — only if meaningful */}
+                <div className="flex items-start gap-3 rounded-xl border border-amber-500/15 bg-amber-500/[0.03] p-4">
+                    <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                    <div className="space-y-1">
+                        <p className="text-xs font-semibold text-amber-200">Use these scores to prioritize tests—not predict outcomes.</p>
+                        <p className="text-xs leading-relaxed text-zinc-500">
+                            Public data cannot reveal impressions, click-through rate, retention, audience geography, or actual revenue. The publishing-time and revenue models are directional scenarios only.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Pain Points */}
                 {(analytics.frustration?.painPoints?.length ?? 0) > 0 && (
                     <div className="pt-4 border-t border-[#1e1e22]/50">
                         <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest mb-2.5">What Viewers Complain About</p>
@@ -202,7 +312,7 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
                     </div>
                 )}
 
-                {/* Tags — compact, max 12 */}
+                {/* Tags */}
                 {(analytics.suggestedTags?.length ?? 0) > 0 && (
                     <div className="pt-1">
                         <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest mb-2.5">Recommended Tags</p>
@@ -222,121 +332,314 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
 
 // ─── Gap Card ─────────────────────────────────────────────────────────────────
 
-export function GapCard({ gap, rank, channelId, isAlreadySaved }: {
+export function GapCard({ gap, rank, channelId, isAlreadySaved, analytics }: {
     gap: GapItem;
     rank: number;
     channelId?: string;
     isAlreadySaved?: boolean;
+    analytics?: ScanAnalytics | null;
 }) {
-    const isTop = gap.gapScore >= 8;
-    const isMid = gap.gapScore >= 6;
+    const [scriptOpen, setScriptOpen] = React.useState(false);
 
-    const scoreColor =
-        isTop ? "text-emerald-300" :
-        isMid ? "text-amber-300" :
-                "text-zinc-400";
+    const score100 = toDisplayScore(gap.gapScore);
+    const { label: scoreLabel, tier } = getScoreLabel(score100);
+    const tierColors = getTierColors(tier);
 
     const accentBorder =
-        isTop ? "border-emerald-500/20" :
-        isMid ? "border-amber-500/15" :
-                "border-[#1e1e22]";
+        tier === "strong"       ? "border-emerald-500/20 hover:border-emerald-500/35 hover:shadow-emerald-500/5" :
+        tier === "good"         ? "border-amber-500/15   hover:border-amber-500/30" :
+                                  "border-[#1e1e22]       hover:border-[#2a2a30]";
 
     const leftBar =
-        isTop ? "bg-gradient-to-b from-emerald-400 via-emerald-500/40 to-transparent" :
-        isMid ? "bg-gradient-to-b from-amber-400 via-amber-500/40 to-transparent" :
-                "bg-gradient-to-b from-zinc-700 to-transparent";
+        tier === "strong"       ? "bg-gradient-to-b from-emerald-400 via-emerald-500/40 to-transparent" :
+        tier === "good"         ? "bg-gradient-to-b from-amber-400  via-amber-500/40  to-transparent" :
+                                  "bg-gradient-to-b from-zinc-700   to-transparent";
+
+    const topLine =
+        tier === "strong"       ? "bg-gradient-to-r from-emerald-500/50 via-emerald-500/15 to-transparent" :
+        tier === "good"         ? "bg-gradient-to-r from-amber-500/40  via-amber-500/10  to-transparent" :
+                                  "bg-gradient-to-r from-zinc-800/60   to-transparent";
+
+    const confValue = typeof gap.confidence === 'number' ? gap.confidence * 100 :
+                      analytics?.provenance?.dataConfidence ?? null;
+    const confLabel = confValue !== null
+        ? (confValue >= 70 ? "High" : confValue >= 45 ? "Moderate" : "Low")
+        : null;
+    const confColor = confValue !== null
+        ? (confValue >= 70 ? "text-emerald-400" : confValue >= 45 ? "text-amber-400" : "text-zinc-500")
+        : "text-zinc-500";
+
+    // Build top 3 signals for summary
+    const bars = [
+        { label: "Comment Need",    score: typeof analytics?.frustration?.score === "number" ? analytics.frustration.score * 10 : null },
+        { label: "Competition Gap", score: typeof analytics?.competition?.score === "number" ? analytics.competition.score * 10 : null },
+        { label: "View Velocity",   score: typeof analytics?.velocity?.score === "number" ? analytics.velocity.score * 10 : null },
+        { label: "Recent Direction", score: typeof analytics?.trend?.score === "number" ? analytics.trend.score * 10 : null },
+    ].filter(b => b.score !== null) as { label: string; score: number; }[];
 
     return (
-        <div className={`group relative flex flex-col bg-[#0f0f11] border rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 ${accentBorder} ${isTop ? "hover:border-emerald-500/35 hover:shadow-emerald-500/5" : "hover:border-[#2a2a30]"}`}>
+        <>
+            <div className={`group relative flex flex-col bg-[#0f0f11] border rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 ${accentBorder}`}>
 
-            {/* Left accent */}
-            <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${leftBar} rounded-l-2xl`} />
+                {/* Left accent */}
+                <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${leftBar} rounded-l-2xl`} />
 
-            {/* Top line */}
-            <div className={`h-px w-full ${isTop ? "bg-gradient-to-r from-emerald-500/50 via-emerald-500/15 to-transparent" : isMid ? "bg-gradient-to-r from-amber-500/40 via-amber-500/10 to-transparent" : "bg-gradient-to-r from-zinc-800/60 to-transparent"}`} />
+                {/* Top line */}
+                <div className={`h-px w-full ${topLine}`} />
 
-            {/* Header */}
-            <div className="pl-5 pr-4 pt-4 pb-3 flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                    {/* Rank + trigger */}
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">
-                            Gap #{rank}
-                        </span>
-                        {(gap as any).psychologicalTrigger && (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 rounded-full border text-purple-400/80 border-purple-500/20 bg-purple-500/8">
-                                <Brain className="w-2.5 h-2.5" />
-                                {(gap as any).psychologicalTrigger.replace(/_/g, " ")}
+                {/* ── HEADER: Score + Title ── */}
+                <div className="pl-5 pr-4 pt-5 pb-3 flex items-start gap-4">
+
+                    {/* Hero Score Ring */}
+                    <HeroScoreRing score100={score100} tier={tier} />
+
+                    {/* Title block */}
+                    <div className="flex-1 min-w-0 pt-1">
+                        {/* Rank + psychological trigger */}
+                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">
+                                #{rank} Gap
                             </span>
+                            {gap.psychologicalTrigger && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 rounded-full border text-purple-400/80 border-purple-500/20 bg-purple-500/8">
+                                    <Brain className="w-2.5 h-2.5" />
+                                    {gap.psychologicalTrigger.replace(/_/g, " ")}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Score label & Confidence */}
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <p className={`text-[10px] font-mono font-bold uppercase tracking-widest ${tierColors.text}`}>
+                                {tier === "strong" ? "🔥" : tier === "good" ? "🟡" : "⚪"} {scoreLabel}
+                            </p>
+                            {confLabel && (
+                                <p className={`text-[10px] font-mono font-bold uppercase tracking-widest ${confColor}`}>
+                                    · DATA COVERAGE: {confLabel} {Math.round(confValue!)}%
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Title */}
+                        <h3 className="font-bold text-zinc-100 text-[14px] leading-snug tracking-tight">{gap.title}</h3>
+                    </div>
+                </div>
+
+                {/* ── BODY ── */}
+                <div className="pl-5 pr-4 pb-0 space-y-4">
+
+                    {/* Metadata strip: VIDEO IDEA label */}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-0.5">
+                        <div className="flex items-center gap-1.5">
+                            <Film className="w-3 h-3 text-zinc-600 shrink-0" />
+                            <span className="text-[10px] text-zinc-500">{gap.format}</span>
+                        </div>
+                        {gap.targetAudience && (
+                            <div className="flex items-center gap-1.5">
+                                <Users className="w-3 h-3 text-zinc-600 shrink-0" />
+                                <span className="text-[10px] text-zinc-500">{gap.targetAudience}</span>
+                            </div>
+                        )}
+                        {gap.monetizationAngle && (
+                            <div className="flex items-center gap-1.5">
+                                <DollarSign className="w-3 h-3 text-zinc-600 shrink-0" />
+                                <span className="text-[10px] text-zinc-500">{gap.monetizationAngle}</span>
+                            </div>
                         )}
                     </div>
-                    <h3 className="font-bold text-zinc-100 text-[14px] leading-snug tracking-tight">{gap.title}</h3>
-                </div>
 
-                {/* Score badge + save */}
-                <div className="flex flex-col items-center gap-2 shrink-0">
-                    <div className={`flex flex-col items-center justify-center w-11 h-11 rounded-xl border ${isTop ? "bg-emerald-500/10 border-emerald-500/20" : isMid ? "bg-amber-500/8 border-amber-500/15" : "bg-[#1e1e22] border-[#2a2a30]"}`}>
-                        <span className={`text-sm font-bold leading-none tabular-nums ${scoreColor}`}>{gap.gapScore}</span>
-                        <span className="text-[7px] font-mono text-zinc-600 uppercase mt-0.5">/ 10</span>
-                    </div>           {channelId && <SaveIdeaButton gap={gap} channelId={channelId} isAlreadySaved={isAlreadySaved} />}
-                </div>
-            </div>
-
-            {/* Body */}
-            <div className="pl-5 pr-4 pb-4 space-y-4">
-
-                {/* Reasoning — the core value prop */}
-                <p className="text-[12px] text-zinc-400 leading-relaxed">{gap.reasoning}</p>
-
-                {/* Hook — hero line */}
-                <div className={`pl-3 border-l-2 py-0.5 ${isTop ? "border-emerald-500/50" : "border-zinc-700/60"}`}>
-                    <p className={`text-[12px] italic leading-relaxed ${isTop ? "text-emerald-100/80" : "text-zinc-300"}`}>
-                        &ldquo;{gap.hook}&rdquo;
-                    </p>
-                </div>
-
-                {/* Meta row — only show fields that exist, inline */}
-                <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1">
-                    {gap.targetAudience && (
-                        <div className="flex items-center gap-1.5 min-w-0">
-                            <Users className="w-3 h-3 text-zinc-600 shrink-0" />
-                            <span className="text-[10px] text-zinc-500 truncate">{gap.targetAudience}</span>
+                    {/* ── 🔥 EVIDENCE ── */}
+                    {(gap.evidenceComments?.length ?? 0) > 0 ? (
+                        <div className="p-4 rounded-xl border border-amber-500/20 bg-[#161311] space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                    <MessageSquare className="w-4 h-4 text-amber-500" />
+                                    <p className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest">Verified comment evidence</p>
+                                </div>
+                                {analytics?.frustration?.score && (
+                                    <span className="text-[9px] font-mono text-zinc-500 uppercase">
+                                        {analytics.frustration.painPoints?.length ?? 0 > 0 ? "Multiple pain points found" : ""}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="space-y-4">
+                                {gap.evidenceComments?.map((c, i) => (
+                                    <div key={i} className="pl-3 border-l-2 border-amber-500/30">
+                                        <p className="text-[12px] text-zinc-300 italic leading-relaxed">&ldquo;{c.text}&rdquo;</p>
+                                        <p className="text-[10px] text-amber-500/70 font-mono mt-1.5">— {c.likes} likes</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-[#24242a] bg-[#111113] p-3">
+                            <p className="mb-1 text-[10px] font-mono uppercase tracking-widest text-zinc-600">AI hypothesis · no direct comment evidence</p>
+                            <p className="text-[12px] text-zinc-400 leading-relaxed">{gap.reasoning}</p>
                         </div>
                     )}
-                    <div className="flex items-center gap-1.5 min-w-0">
-                        <Film className="w-3 h-3 text-zinc-600 shrink-0" />
-                        <span className="text-[10px] text-zinc-500 truncate">{gap.format}</span>
-                    </div>
-                    {gap.monetizationAngle && (
-                        <div className="flex items-center gap-1.5 min-w-0">
-                            <DollarSign className="w-3 h-3 text-zinc-600 shrink-0" />
-                            <span className="text-[10px] text-zinc-500 truncate">{gap.monetizationAngle}</span>
-                        </div>
-                    )}
-                    {gap.competitorWeakness && (
-                        <div className="flex items-center gap-1.5 min-w-0">
-                            <ShieldAlert className="w-3 h-3 text-red-500/60 shrink-0" />
-                            <span className="text-[10px] text-red-400/70 truncate">{gap.competitorWeakness}</span>
-                        </div>
-                    )}
-                </div>
 
-                {/* Content outline — collapsible, only if exists */}
-                {gap.contentOutline && gap.contentOutline.length > 0 && (
-                    <CollapsibleOutline items={gap.contentOutline} />
-                )}
+                    {/* ── WHY NOW ── */}
+                    {gap.quantitativeReasons && gap.quantitativeReasons.length > 0 ? (
+                        <div className="pt-2 pb-1 space-y-2 mt-4">
+                            <div className="flex items-center gap-1.5 mb-2">
+                                <AlertCircle className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                                <p className="text-[10px] font-mono font-bold text-sky-400 uppercase tracking-widest">Measured signals</p>
+                            </div>
+                            <ul className="space-y-1.5 pl-5 list-disc text-sky-400/50">
+                                {gap.quantitativeReasons.map((qr, idx) => (
+                                    <li key={idx}>
+                                        <p className="text-[12px] text-zinc-300">
+                                            {qr.label}: <span className="font-bold text-zinc-100">{qr.value}</span>
+                                        </p>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    ) : gap.whyNow ? (
+                        <div className="flex items-start gap-2 pt-1 pb-1">
+                            <AlertCircle className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
+                            <p className="text-[12px] text-zinc-300 leading-relaxed"><span className="font-bold text-sky-400">Why now:</span> {gap.whyNow}</p>
+                        </div>
+                    ) : null}
 
-                {/* SEO tips — compact pills, max 6 */}
-                {gap.seoTips && gap.seoTips.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                        {gap.seoTips.slice(0, 6).map((tip, i) => (
-                            <span key={i} className="text-[9px] font-mono bg-[#1a1a1e] border border-[#232328] text-zinc-500 rounded-lg px-2 py-0.5">
-                                {tip}
-                            </span>
+                    {/* ── Top 3 Signals Summary ── */}
+                    <div className="space-y-2 pt-1 pb-2">
+                        {bars.slice(0, 3).map(b => (
+                            <div key={b.label} className="flex items-center gap-3">
+                                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wide w-28">{b.label}</span>
+                                <div className="flex-1 h-1 bg-[#1e1e22] rounded-full overflow-hidden">
+                                    <div className="h-full bg-emerald-500/80 rounded-full" style={{ width: `${b.score}%` }} />
+                                </div>
+                                <span className="text-[10px] font-mono text-zinc-400 tabular-nums w-6 text-right">{Math.round(b.score)}</span>
+                            </div>
                         ))}
                     </div>
-                )}
+
+                    {/* ── HOOK ── */}
+                    <div className={`pl-3 border-l-2 py-0.5 ${tier === "strong" ? "border-emerald-500/50" : "border-zinc-700/60"}`}>
+                        <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest mb-0.5">Hook</p>
+                        <p className={`text-[12px] italic leading-relaxed ${tier === "strong" ? "text-emerald-100/80" : "text-zinc-300"}`}>
+                            &ldquo;{gap.hook}&rdquo;
+                        </p>
+                    </div>
+
+                    {/* ── Score Breakdown (collapsible) ── */}
+                    <ScoreBreakdownPanel gap={gap} analytics={analytics} confidence={confValue === null ? null : Math.round(confValue)} confLabel={confLabel} confColor={confColor} />
+
+                    {/* ── Content Outline ── */}
+                    {gap.contentOutline && gap.contentOutline.length > 0 && (
+                        <CollapsibleOutline items={gap.contentOutline} />
+                    )}
+
+                    {/* ── SEO Tips ── */}
+                    {gap.seoTips && gap.seoTips.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                            {gap.seoTips.slice(0, 6).map((tip, i) => (
+                                <span key={i} className="text-[9px] font-mono bg-[#1a1a1e] border border-[#232328] text-zinc-500 rounded-lg px-2 py-0.5">
+                                    {tip}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* ── CTA ROW ── */}
+                <div className="mt-4 px-4 pb-4 pt-3 border-t border-[#1e1e22]/60 flex items-center gap-2">
+                    {/* Write Script */}
+                    <button
+                        onClick={() => setScriptOpen(true)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-600/10 border border-emerald-600/20 text-emerald-400 hover:bg-emerald-600/20 hover:border-emerald-500/30 text-[11px] font-semibold transition-all duration-150 group/btn"
+                    >
+                        <FileText className="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" />
+                        Write Script
+                    </button>
+
+                    {/* Create Brief (save + go to vault) */}
+                    {channelId && (
+                        <CreateBriefButton gap={gap} channelId={channelId} />
+                    )}
+
+                    {/* Save bookmark */}
+                    {channelId && (
+                        <SaveIdeaButton gap={gap} channelId={channelId} isAlreadySaved={isAlreadySaved} />
+                    )}
+                </div>
             </div>
+
+            {/* Script Modal */}
+            {scriptOpen && (
+                <ScriptModal
+                    idea={{
+                        id: `gap-${rank}`,
+                        title: gap.title,
+                        hook: gap.hook,
+                        format: gap.format,
+                        duration: "10-15 min",
+                    }}
+                    onClose={() => setScriptOpen(false)}
+                />
+            )}
+        </>
+    );
+}
+
+// ─── Score Breakdown Panel ────────────────────────────────────────────────────
+
+function ScoreBreakdownPanel({ gap, analytics, confidence, confLabel, confColor }: {
+    gap: GapItem;
+    analytics?: ScanAnalytics | null;
+    confidence: number | null;
+    confLabel: string | null;
+    confColor: string;
+}) {
+    const [open, setOpen] = React.useState(false);
+
+    const bars = [
+        { label: "Comment Need",  score: typeof analytics?.frustration?.score === "number" ? analytics.frustration.score * 10 : null, insight: undefined },
+        { label: "Competition",   score: typeof analytics?.competition?.score === "number" ? analytics.competition.score * 10 : null, insight: analytics?.competition?.insight },
+        { label: "View Velocity", score: typeof analytics?.velocity?.score === "number" ? analytics.velocity.score * 10 : null, insight: analytics?.velocity?.insight },
+        { label: "Recent Direction", score: typeof analytics?.trend?.score === "number" ? analytics.trend.score * 10 : null, insight: analytics?.trend?.insight },
+        { label: "Engagement",    score: typeof analytics?.engagement?.score === "number" ? analytics.engagement.score * 10 : null, insight: undefined },
+    ].filter(b => b.score !== null) as { label: string; score: number; insight?: string }[];
+
+    if (bars.length === 0) return null;
+
+    return (
+        <div className="border border-[#1e1e22] rounded-xl overflow-hidden">
+            <button
+                onClick={() => setOpen(v => !v)}
+                className="w-full flex items-center justify-between px-3 py-2.5 text-[9px] font-mono text-zinc-600 uppercase tracking-widest hover:text-zinc-400 transition-colors hover:bg-[#111113]"
+            >
+                <span className="flex items-center gap-1.5">
+                    <Target className="w-3 h-3" />
+                    View full breakdown
+                </span>
+                <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+            </button>
+            {open && (
+                <div className="border-t border-[#1e1e22] px-3 pb-3 pt-3 space-y-3">
+                    {confLabel && (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-[#0c0c0e] border border-[#1e1e22]">
+                            <CheckCircle2 className={`w-3 h-3 shrink-0 ${confColor}`} />
+                            <p className="text-[10px] text-zinc-500">
+                                <span className={`font-bold ${confColor}`}>{confLabel} data coverage ({confidence}%)</span>
+                                {" "}— based on how much video, search, and comment evidence was available.
+                            </p>
+                        </div>
+                    )}
+                    {bars.map(b => (
+                        <ScoreSubBar key={b.label} label={b.label} score={b.score} max={10 * 10} insight={b.insight} />
+                    ))}
+                    {gap.reasoning && (
+                        <div className="pt-2 border-t border-[#1e1e22]/50">
+                            <div className="flex items-start gap-2">
+                                <Lightbulb className="w-3 h-3 text-zinc-600 shrink-0 mt-0.5" />
+                                <p className="text-[10px] text-zinc-500 leading-relaxed">{gap.reasoning}</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -367,6 +670,54 @@ function CollapsibleOutline({ items }: { items: string[] }) {
                 </div>
             )}
         </div>
+    );
+}
+
+// ─── Create Brief Button ──────────────────────────────────────────────────────
+
+function CreateBriefButton({ gap, channelId }: { gap: GapItem; channelId: string }) {
+    const [loading, setLoading] = React.useState(false);
+    const [done, setDone] = React.useState(false);
+
+    const handle = async () => {
+        if (loading || done) return;
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/channels/${channelId}/ideas`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(gap),
+            });
+            if (res.ok) {
+                setDone(true);
+                // Navigate to vault after short delay
+                setTimeout(() => window.location.href = "/dashboard/vault", 800);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <button
+            onClick={handle}
+            disabled={loading || done}
+            title="Save to Idea Vault and open brief"
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-[11px] font-semibold transition-all duration-150 border ${
+                done
+                    ? "bg-sky-500/10 border-sky-500/20 text-sky-400"
+                    : "bg-[#111113] border-[#1e1e22] text-zinc-400 hover:text-zinc-200 hover:border-[#2a2a30] hover:bg-[#1a1a1e]"
+            }`}
+        >
+            {loading
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : done
+                    ? <><CheckCircle2 className="w-3.5 h-3.5" /> Saved</>
+                    : <><ArrowRight className="w-3.5 h-3.5" /> Create Brief</>
+            }
+        </button>
     );
 }
 
@@ -402,7 +753,7 @@ export function SaveIdeaButton({ gap, channelId, isAlreadySaved }: {
             onClick={handleSave}
             disabled={isSaving || saved}
             title={saved ? "Saved to Vault" : "Save to Idea Vault"}
-            className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${
+            className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all shrink-0 ${
                 saved
                     ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-400"
                     : "bg-[#111113] border-[#1e1e22] text-zinc-500 hover:text-zinc-200 hover:border-[#2a2a30]"

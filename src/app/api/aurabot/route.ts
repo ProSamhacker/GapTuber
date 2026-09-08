@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { extractText, getDocumentProxy } from "unpdf";
 import mammoth from "mammoth";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import AdmZip from "adm-zip";
 import { auth } from "@/auth";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -71,14 +71,21 @@ function extractPPTXText(buffer: Buffer): string {
     }
 }
 
-function extractXLSXText(buffer: ArrayBuffer): string {
+async function extractXLSXText(buffer: ArrayBuffer): Promise<string> {
     try {
-        const workbook = XLSX.read(buffer, { type: "buffer" });
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer);
         let content = "";
-        for (const sheetName of workbook.SheetNames) {
-            const sheet = workbook.Sheets[sheetName];
-            content += `Sheet: ${sheetName}\n${XLSX.utils.sheet_to_csv(sheet)}\n\n`;
-        }
+        workbook.eachSheet(worksheet => {
+            const rows: string[] = [];
+            worksheet.eachRow({ includeEmpty: false }, row => {
+                const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+                rows.push(values
+                    .map(value => typeof value === "object" && value !== null && "text" in value ? String(value.text) : String(value ?? ""))
+                    .join("\t"));
+            });
+            content += `Sheet: ${worksheet.name}\n${rows.join("\n")}\n\n`;
+        });
         return content;
     } catch (e) {
         console.error("XLSX extraction failed:", e);
@@ -263,7 +270,7 @@ export async function POST(req: NextRequest) {
                 if (text) textContent += `\n\n--- File: ${file.name} ---\n${truncateContent(text)}\n--- End ${file.name} ---`;
             } else if (file.type.includes("spreadsheetml")) {
                 const buf = await file.arrayBuffer();
-                const text = extractXLSXText(buf);
+                const text = await extractXLSXText(buf);
                 if (text) textContent += `\n\n--- File: ${file.name} ---\n${truncateContent(text)}\n--- End ${file.name} ---`;
             } else {
                 // Text-based files
@@ -327,7 +334,7 @@ export async function POST(req: NextRequest) {
             }
 
             const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
-            let activeKey = shuffledKeys[0];
+            const activeKey = shuffledKeys[0];
             const groq = createGroq({ apiKey: activeKey });
 
             modelLabel = "Llama 3.3 70B (Groq)";

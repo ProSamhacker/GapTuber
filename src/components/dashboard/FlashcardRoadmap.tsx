@@ -19,10 +19,18 @@ import type { VideoIdeaDB } from "@/db/schema";
 
 interface VideoIdea {
     id: string;
+    dbId: string;
     title: string;
     hook: string;
     format: string;
     script?: string;
+    status: "ready" | "filming" | "done";
+    youtubeVideoId?: string | null;
+    outcomeMultipliers?: {
+        day1?: number;
+        day7?: number;
+        day30?: number;
+    } | null;
 }
 
 type SortKey = "default" | "potential" | "status" | "title";
@@ -35,10 +43,14 @@ type FilterStatus = "all" | "ready" | "filming" | "done";
 function mapBlueprintToIdeas(ideas: VideoIdeaDB[]): VideoIdea[] {
     return ideas.map((idea, i) => ({
         id: `idea-${i}`,
+        dbId: idea.id || "",
         title: idea.title,
-        hook: idea.hook,
-        format: idea.format,
-        script: idea.script,
+        hook: idea.hook || "",
+        format: idea.format || "",
+        script: idea.script || undefined,
+        status: (idea.status as any) || "ready",
+        youtubeVideoId: idea.youtubeVideoId,
+        outcomeMultipliers: idea.outcomeMultipliers,
     }));
 }
 
@@ -96,21 +108,24 @@ const STATUS_CONFIG = {
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 
 function PotentialBadge({ level }: { level: string }) {
-    const map: Record<string, { cls: string; icon: React.ReactNode; glow: string }> = {
+    const map: Record<string, { cls: string; icon: React.ReactNode; glow: string; label: string }> = {
         high: {
             cls: "text-emerald-300 bg-emerald-500/15 border-emerald-500/30",
             icon: <Sparkles className="w-2.5 h-2.5" />,
             glow: "shadow-[0_0_12px_rgba(52,211,153,0.15)]",
+            label: "🔥 Strong Opportunity",
         },
         medium: {
             cls: "text-amber-300 bg-amber-500/15 border-amber-500/30",
             icon: <TrendingUp className="w-2.5 h-2.5" />,
             glow: "",
+            label: "🟡 Good Opportunity",
         },
         low: {
             cls: "text-zinc-500 bg-zinc-800/50 border-zinc-700/40",
             icon: null,
             glow: "",
+            label: "⚪ Experimental",
         },
     };
     const l = level.toLowerCase();
@@ -118,7 +133,7 @@ function PotentialBadge({ level }: { level: string }) {
     return (
         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-mono font-bold uppercase border tracking-widest ${cfg.cls} ${cfg.glow}`}>
             {cfg.icon}
-            {level} Potential
+            {cfg.label}
         </span>
     );
 }
@@ -358,6 +373,26 @@ function IdeaCard({
                                 </motion.div>
                             )}
                         </AnimatePresence>
+                    </div>
+                )}
+
+                {/* ── Row 6.5: Performance Outcomes (Launched only) ── */}
+                {idea.status === "done" && idea.outcomeMultipliers && (
+                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+                        {["day1", "day7", "day30"].map((day) => {
+                            const mult = (idea.outcomeMultipliers as any)?.[day];
+                            if (mult === undefined || mult === null) return null;
+                            const isGood = mult >= 1;
+                            const display = mult.toFixed(1) + "x";
+                            return (
+                                <div key={day} className={`flex flex-col items-center justify-center p-2 rounded-lg border min-w-[70px] ${
+                                    isGood ? "bg-emerald-500/10 border-emerald-500/20" : "bg-red-500/10 border-red-500/20"
+                                }`}>
+                                    <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500">{day.replace("day", "Day ")}</span>
+                                    <span className={`text-[13px] font-bold font-mono ${isGood ? "text-emerald-400" : "text-red-400"}`}>{display}</span>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
 

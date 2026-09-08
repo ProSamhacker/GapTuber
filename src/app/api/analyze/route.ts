@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { createGroq } from "@ai-sdk/groq";
-import { generateText, generateObject } from "ai";
-import { auth } from "@/auth";
-import { decode } from "next-auth/jwt";
+import { generateText } from "ai";
 import { db } from "@/db";
 import { scans } from "@/db/schema";
-import { getUserByEmail, getChannelsByUserId, deductUserCredits } from "@/db/queries";
+import { getChannelsByUserId, deductUserCredits } from "@/db/queries";
 import { resolveUserFromRequest } from "@/lib/resolve-user";
+import { getCorsHeaders } from "@/lib/cors";
 import { env } from "@/env";
 import {
     buildGapCandidates,
@@ -20,26 +19,15 @@ import {
     computeOptimalUploadSchedule,
     estimateRevenue,
     generateOptimalTags,
+    CommentData,
 } from "@/lib/engine/scoring";
 import { buildAnalysisPrompt } from "@/lib/engine/prompts";
-import { AnalyzeRequestSchema, GapOutputSchema } from "@/lib/engine/schemas";
+import { AnalyzeRequestSchema, GapOutputSchema, type GapOutput } from "@/lib/engine/schemas";
+import { buildAnalysisProvenance } from "@/lib/engine/provenance";
 import { getRandomYouTubeApiKey, getChannelIdFromHandle, getRecentChannelVideos, getSearchResults, getTopComments } from "@/lib/youtube-server";
-import { VideoData } from "@/lib/engine/scoring";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // Fluid Compute: 5 minute max on Vercel Hobby plan
-
-// CORS: reflect origin for credentialed requests (Access-Control-Allow-Origin: * won't work with credentials)
-function getCorsHeaders(req: NextRequest): Record<string, string> {
-    const origin = req.headers.get("origin") ?? "*";
-    return {
-        "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-Token, X-Session-Cookie",
-        "Access-Control-Allow-Credentials": "true",
-        "Vary": "Origin",
-    };
-}
 
 // Handle preflight requests from Chrome Extension
 export async function OPTIONS(req: NextRequest) {
@@ -113,7 +101,8 @@ export async function POST(req: NextRequest) {
 
         let videos = input.videos ?? [];
         let searchResults = input.searchResults ?? [];
-        let comments = input.comments ?? [];
+        let comments: CommentData[] = input.comments ?? [];
+        let competitorsResolved = 0;
 
         // 1. Fetch competitors' videos if provided
         if (input.competitors && input.competitors.length > 0) {
@@ -126,6 +115,7 @@ export async function POST(req: NextRequest) {
                 const ytChannelId = await getChannelIdFromHandle(competitor, apiKey);
                 if (ytChannelId) {
                     const recentVideos = await getRecentChannelVideos(ytChannelId, apiKey, 10);
+                    if (recentVideos.length > 0) competitorsResolved += 1;
                     videos = [...videos, ...recentVideos];
                 }
             }
@@ -150,7 +140,8 @@ export async function POST(req: NextRequest) {
                         const videoId = video.url.split("v=")[1];
                         if (videoId) {
                             const topComms = await getTopComments(videoId, apiKey, 10);
-                            comments = [...comments, ...topComms.map((c: any) => ({
+                            comments = [...comments, ...topComms.map(c => ({
+                                id: c.id,
                                 text: c.text,
                                 videoUrl: video.url,
                                 likeCount: c.likeCount,
@@ -161,6 +152,9 @@ export async function POST(req: NextRequest) {
                 }
             }
         }
+
+        // Ensure all comments have an ID for evidence validation
+        comments = comments.map(c => ({ ...c, id: c.id || crypto.randomUUID() }));
 
         if (videos.length === 0) {
              return NextResponse.json({ error: "No videos found for analysis. Please provide valid competitor channels." }, { status: 400, headers: getCorsHeaders(req) });
@@ -191,8 +185,23 @@ export async function POST(req: NextRequest) {
 
         // Phase 2: AI refinement via Groq
         const competitorTitles = videos.map(v => v.title);
-        const verbatimPainPoints = frustrationData.verbatimQuestions;
-        const prompt = buildAnalysisPrompt(input.keyword, candidates, competitorTitles, verbatimPainPoints);
+
+        // Select ~30 comments for evidence: 10 high-liked, 10 questions, 10 random/recent
+        const sortedByLikes = [...comments].sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0));
+        const questions = comments.filter(c => c.text.includes("?"));
+        const selectedComments = new Map<string, CommentData>();
+        sortedByLikes.slice(0, 10).forEach(c => { if (c.id) selectedComments.set(c.id, c); });
+        questions.slice(0, 10).forEach(c => { if (c.id) selectedComments.set(c.id, c); });
+        comments.slice(-10).forEach(c => { if (c.id) selectedComments.set(c.id, c); });
+
+        const topCommentsForPrompt = Array.from(selectedComments.values()).map(c => ({
+            id: c.id!,
+            text: c.text.trim().substring(0, 300),
+            likes: c.likeCount ?? 0
+        }));
+
+        const whyNowContext = `Sample collected now from the YouTube Data API: ${videos.length} competitor videos, ${searchResults.length} keyword search results, and ${comments.length} top-level comments. Recent-performance score: ${trendData.score.toFixed(1)}/10 (${trendData.insight})`;
+        const prompt = buildAnalysisPrompt(input.keyword, candidates, competitorTitles, topCommentsForPrompt, whyNowContext);
 
         const keys = [
             env.GROQ_API_KEY,
@@ -207,9 +216,9 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        let scanResult: any = null;
+        let scanResult: GapOutput | null = null;
         let aiSuccess = false;
-        let lastError: any = null;
+        let lastError: unknown = null;
 
         const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
 
@@ -222,7 +231,7 @@ export async function POST(req: NextRequest) {
                         { role: "system", content: "You are an expert YouTube strategist. Explain this like I am a tired YouTuber, not a marketing executive. You are strictly forbidden from using words like: leverage, unlock, dive deep, landscape, synergy, dynamic, or comprehensive. Respond ONLY with valid JSON matching the schema exactly. No markdown, no explanation." },
                         { role: "user", content: prompt }
                     ],
-                    temperature: 0.75,
+                    temperature: 0.2,
                 });
                 
                 const start = result.text.indexOf("{");
@@ -233,22 +242,31 @@ export async function POST(req: NextRequest) {
                 scanResult = GapOutputSchema.parse(parsed);
 
                 // ── Post-processing: enforce keyword anchoring in titles ─────────
-                // LLMs often ignore title rules even when explicitly instructed.
-                // This ensures every title contains the keyword and is long enough.
                 const kwLower = input.keyword.toLowerCase();
                 const kwWords = kwLower.split(/\s+/).filter(w => w.length > 2);
 
+                const structuredReasons = [
+                    { type: "velocity", label: "Recent performance delta", value: (velocityData.weeklyGrowthRate ?? 0) > 0 ? "+" + Math.round(velocityData.weeklyGrowthRate ?? 0) + "%" : Math.round(velocityData.weeklyGrowthRate ?? 0) + "%", source: "youtube_video_sample" },
+                    { type: "saturation", label: "Competition", value: saturationData.competitionLevel ?? "Unknown", source: "saturation" },
+                    { type: "sample", label: "Evidence sample", value: `${videos.length} videos · ${comments.length} comments`, source: "youtube_data_api" }
+                ];
+
                 scanResult = {
                     ...scanResult,
-                    gaps: scanResult.gaps.map((gap: any) => {
-                        const title: string = gap.title ?? "";
+                    gaps: scanResult.gaps.map((gap, gapIndex) => {
+                        const groundedGap = { ...gap };
+                        groundedGap.id = crypto.randomUUID();
+                        groundedGap.quantitativeReasons = structuredReasons;
+
+                        // 1. Enforce Keyword Anchoring
+                        const title: string = groundedGap.title ?? "";
                         const titleLower = title.toLowerCase();
 
                         // Check if title contains at least 2 consecutive keyword words
+                        const keywordPhrases = kwWords.slice(0, -1).map((word, index) => `${word} ${kwWords[index + 1]}`);
                         const hasKeyword = kwWords.length < 2
                             ? kwWords.some(w => titleLower.includes(w))
-                            : kwWords.some((w, i) => i < kwWords.length - 1 &&
-                                titleLower.includes(w) && titleLower.includes(kwWords[i + 1]));
+                            : keywordPhrases.some(phrase => titleLower.includes(phrase));
 
                         // 26 chars is the floor — very short hooks are still valid
                         const isTooShort = title.length < 26;
@@ -278,14 +296,30 @@ export async function POST(req: NextRequest) {
                             // If the original title already partially mentions the keyword topic,
                             // extend it naturally; otherwise append "— keyword" for clarity
                             const hasPartialKeyword = kwWords.some(w => titleLower.includes(w));
-                            const fixedTitle = hasPartialKeyword
+                            groundedGap.title = hasPartialKeyword
                                 ? `${rawHook} — ${kwTitle}`.slice(0, 70)
                                 : `${rawHook}: ${kwTitle}`.slice(0, 70);
-
-                            return { ...gap, title: fixedTitle };
                         }
 
-                        return gap;
+                        // 2. Validate Evidence Comments
+                        if (groundedGap.evidenceComments) {
+                            groundedGap.evidenceComments = groundedGap.evidenceComments.flatMap(ec => {
+                                const real = comments.find(c => c.id === ec.commentId);
+                                if (!real?.id) return []; // Drop hallucinated IDs
+                                return [{
+                                    commentId: real.id,
+                                    text: real.text,
+                                    likes: real.likeCount ?? 0
+                                }];
+                            });
+                        }
+
+                        // 3. Assign Confidence from Candidate
+                        const candidate = candidates[gapIndex] ?? candidates[0];
+                        groundedGap.gapScore = candidate?.scores.compositeScore ?? 0;
+                        groundedGap.confidence = candidate?.scores.confidence ?? 0;
+
+                        return groundedGap;
                     }),
                 };
 
@@ -293,20 +327,13 @@ export async function POST(req: NextRequest) {
                 aiSuccess = true;
                 break;
 
-            } catch (aiError: any) {
+            } catch (aiError: unknown) {
                 lastError = aiError;
                 console.warn("[Key Rotation Analyze] Key failed, trying next...");
-                if (aiError.response?.status === 429) {
-                    const retryAfter = aiError.response.headers.get("Retry-After");
-                    if (retryAfter) {
-                        const waitTime = parseInt(retryAfter) * 1000;
-                        await new Promise(r => setTimeout(r, Math.min(waitTime, 2000)));
-                    }
-                }
             }
         }
 
-        if (!aiSuccess) {
+        if (!aiSuccess || !scanResult) {
             console.error("[AI Error] All keys exhausted.", lastError);
             return NextResponse.json(
                 {
@@ -320,6 +347,31 @@ export async function POST(req: NextRequest) {
         // Deduct 1 credit for analysis
         await deductUserCredits(dbUser.id, 1, "Extension Gap Analysis");
 
+        const scanId = crypto.randomUUID();
+        const provenance = buildAnalysisProvenance({
+            source: input.videos?.length || input.comments?.length || input.searchResults?.length
+                ? "YouTube Data API v3 + extension-collected public page data"
+                : "YouTube Data API v3",
+            competitorsRequested: input.competitors.length,
+            competitorsResolved,
+            videos: videos.length,
+            comments: comments.length,
+            searchResults: searchResults.length,
+            dataConfidence: candidates[0]?.scores.confidence ?? 0,
+        });
+        const analyticsPayload = {
+            velocity: { score: velocityData.score, insight: velocityData.insight, weeklyGrowthRate: velocityData.weeklyGrowthRate },
+            saturation: { score: saturationData.score, insight: saturationData.insight, competitionLevel: saturationData.competitionLevel },
+            frustration: { score: frustrationData.score, topKeywords: frustrationData.topKeywords, painPoints: frustrationData.painPoints },
+            engagement: { score: engagementData.score, avgLikeRate: engagementData.avgLikeRate, avgCommentRate: engagementData.avgCommentRate },
+            trend: { score: trendData.score, trend: trendData.trend, insight: trendData.insight },
+            competition: { score: competitionData.score, difficulty: competitionData.difficulty, insight: competitionData.insight },
+            uploadSchedule: { bestDay: scheduleData.bestDay, bestHour: scheduleData.bestHour, insight: scheduleData.insight },
+            revenueEstimate: { low: revenueEstimate.low, mid: revenueEstimate.mid, high: revenueEstimate.high },
+            suggestedTags: suggestedTags.slice(0, 20),
+            provenance,
+        };
+
         // Background DB Insert Execution
         const executeDbInsert = async () => {
             try {
@@ -329,6 +381,7 @@ export async function POST(req: NextRequest) {
                             const targetChannelId = userChannels[0].id;
 
                             await db.insert(scans).values({
+                                id: scanId,
                                 userId: dbUser.id,
                                 channelId: targetChannelId,
                                 keyword: input.keyword,
@@ -343,17 +396,7 @@ export async function POST(req: NextRequest) {
                                     })),
                                 },
                                 result: scanResult,
-                                analytics: {
-                                    velocity: { score: velocityData.score, insight: velocityData.insight, weeklyGrowthRate: velocityData.weeklyGrowthRate },
-                                    saturation: { score: saturationData.score, insight: saturationData.insight, competitionLevel: saturationData.competitionLevel },
-                                    frustration: { score: frustrationData.score, topKeywords: frustrationData.topKeywords, painPoints: frustrationData.painPoints },
-                                    engagement: { score: engagementData.score, avgLikeRate: engagementData.avgLikeRate, avgCommentRate: engagementData.avgCommentRate },
-                                    trend: { score: trendData.score, trend: trendData.trend, insight: trendData.insight },
-                                    competition: { score: competitionData.score, difficulty: competitionData.difficulty, insight: competitionData.insight },
-                                    uploadSchedule: { bestDay: scheduleData.bestDay, bestHour: scheduleData.bestHour, insight: scheduleData.insight },
-                                    revenueEstimate: { low: revenueEstimate.low, mid: revenueEstimate.mid, high: revenueEstimate.high },
-                                    suggestedTags: suggestedTags.slice(0, 20),
-                                },
+                                analytics: analyticsPayload,
                             });
                         }
                     }
@@ -372,56 +415,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
             {
                 success: true,
+                scanId: scanId,
                 keyword: input.keyword,
                 gaps: scanResult.gaps,
                 overallOpportunity: scanResult.overallOpportunity,
                 recommendedNiche: scanResult.recommendedNiche,
-                analytics: {
-                    velocity: {
-                        score: velocityData.score,
-                        insight: velocityData.insight,
-                        weeklyGrowthRate: velocityData.weeklyGrowthRate,
-                    },
-                    saturation: {
-                        score: saturationData.score,
-                        insight: saturationData.insight,
-                        competitionLevel: saturationData.competitionLevel,
-                    },
-                    frustration: {
-                        score: frustrationData.score,
-                        topKeywords: frustrationData.topKeywords,
-                        painPoints: frustrationData.painPoints,
-                        sentimentBreakdown: frustrationData.sentimentBreakdown,
-                    },
-                    engagement: {
-                        score: engagementData.score,
-                        avgLikeRate: engagementData.avgLikeRate,
-                        avgCommentRate: engagementData.avgCommentRate,
-                    },
-                    trend: {
-                        score: trendData.score,
-                        trend: trendData.trend,
-                        insight: trendData.insight,
-                    },
-                    competition: {
-                        score: competitionData.score,
-                        difficulty: competitionData.difficulty,
-                        insight: competitionData.insight,
-                    },
-                    uploadSchedule: {
-                        bestDay: scheduleData.bestDay,
-                        bestHour: scheduleData.bestHour,
-                        insight: scheduleData.insight,
-                    },
-                    revenueEstimate,
-                    suggestedTags: suggestedTags.slice(0, 20),
-                },
+                analytics: analyticsPayload,
                 meta: {
                     videoCount: videos.length,
                     commentCount: comments.length,
                     searchResultCount: searchResults.length,
                     candidatesEvaluated: candidates.length,
                     confidence: candidates[0]?.scores.confidence ?? 0,
+                    provenance,
                 },
             },
             {

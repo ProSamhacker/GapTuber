@@ -7,7 +7,7 @@ import { db } from "@/db";
 
 import { getRandomYouTubeApiKey } from "@/lib/youtube-server";
 import { scans } from "@/db/schema";
-import { getUserByEmail, getChannelsByUserId, deductUserCredits } from "@/db/queries";
+import { getUserByEmail, getChannelById, deductUserCredits } from "@/db/queries";
 import {
     buildGapCandidates,
     computeVelocityScore,
@@ -20,9 +20,11 @@ import {
     estimateRevenue,
     generateOptimalTags,
     VideoData,
+    CommentData,
 } from "@/lib/engine/scoring";
 import { buildAnalysisPrompt } from "@/lib/engine/prompts";
 import { GapOutputSchema } from "@/lib/engine/schemas";
+import { buildAnalysisProvenance } from "@/lib/engine/provenance";
 import { getChannelIdFromHandle, getRecentChannelVideos, getSearchResults, getTopComments } from "@/lib/youtube-server";
 import { z } from "zod";
 
@@ -31,7 +33,7 @@ export const maxDuration = 60; // Vercel Hobby plan max for streaming/Next.js co
 const WebAnalyzeRequestSchema = z.object({
     keyword: z.string().min(2).max(100).trim(),
     competitors: z.array(z.string()).min(1).max(3),
-    channelId: z.string(), // The ID of the current GapTuber channel to save against
+    channelId: z.string().uuid(), // The ID of the current GapTuber channel to save against
 });
 
 
@@ -60,6 +62,19 @@ export async function POST(req: NextRequest) {
         }
 
         const { keyword, competitors, channelId } = parseResult.data;
+        const dbUser = await getUserByEmail(session.user.email);
+        if (!dbUser) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+        if (dbUser.credits < 1) {
+            return NextResponse.json({ error: "Insufficient credits. Please upgrade your plan." }, { status: 402 });
+        }
+
+        const ownedChannel = await getChannelById(channelId);
+        if (!ownedChannel || ownedChannel.userId !== dbUser.id) {
+            return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+        }
+
         const apiKey = getRandomYouTubeApiKey();
 
         if (!apiKey) {
@@ -68,12 +83,14 @@ export async function POST(req: NextRequest) {
 
         // 1. Fetch YouTube Data
         let videos: VideoData[] = [];
-        const comments: any[] = [];
+        const comments: CommentData[] = [];
+        let competitorsResolved = 0;
         
         for (const competitor of competitors) {
             const ytChannelId = await getChannelIdFromHandle(competitor, apiKey);
             if (ytChannelId) {
                 const recentVideos = await getRecentChannelVideos(ytChannelId, apiKey, 10);
+                if (recentVideos.length > 0) competitorsResolved += 1;
                 videos = [...videos, ...recentVideos];
             }
         }
@@ -89,7 +106,7 @@ export async function POST(req: NextRequest) {
             const videoId = video.url.split("v=")[1];
             if (videoId) {
                 const videoComments = await getTopComments(videoId, apiKey, 20);
-                comments.push(...videoComments.map((c: any) => ({ ...c, videoUrl: video.url })));
+                comments.push(...videoComments.map(c => ({ ...c, videoUrl: video.url })));
             }
         }
 
@@ -98,35 +115,37 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Deterministic Scoring
-        const candidates = buildGapCandidates({ keyword, videos, comments, searchResults });
+        const evidencePool = [...comments]
+            .map(comment => ({ ...comment, id: comment.id ?? crypto.randomUUID() }))
+            .sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0))
+            .slice(0, 30);
+
+        const candidates = buildGapCandidates({ keyword, videos, comments: evidencePool, searchResults });
+
+        const velocityData = computeVelocityScore(videos);
+        const saturationData = computeSaturationScore(searchResults);
+        const frustrationData = computeFrustrationScore(evidencePool);
+        const engagementData = computeEngagementScore(videos);
+        const trendData = computeTrendMomentum(videos);
+        const competitionData = computeCompetitionScore(searchResults);
+        const scheduleData = computeOptimalUploadSchedule(videos);
+        const suggestedTags = generateOptimalTags(keyword, videos, frustrationData.topKeywords);
 
         // Tier 2A: Extract competitor titles and verbatim pain points for LLM differentiation
         const competitorTitles = searchResults.map(r => r.title).filter(Boolean);
-        const frustration = computeFrustrationScore(comments as any);
-        const verbatimPainPoints: string[] = [
-            ...((frustration as any).verbatimQuestions ?? []),
-            ...frustration.painPoints.slice(0, 3),
-        ];
-
-        const prompt = buildAnalysisPrompt(keyword, candidates, competitorTitles, verbatimPainPoints);
-
-        const dbUser = await getUserByEmail(session.user.email);
-        if (!dbUser) {
-            return NextResponse.json({ error: "User not found" }, { status: 404 });
-        }
-
-        if (dbUser.credits < 1) {
-            return NextResponse.json({ error: "Insufficient credits. Please upgrade your plan." }, { status: 402 });
-        }
+        const promptComments = evidencePool.map(comment => ({
+            id: comment.id,
+            text: comment.text.trim().slice(0, 300),
+            likes: comment.likeCount ?? 0,
+        }));
+        const whyNowContext = `Sample collected now from the YouTube Data API: ${videos.length} competitor videos, ${searchResults.length} keyword search results, and ${evidencePool.length} top-level comments. Recent-performance score: ${trendData.score.toFixed(1)}/10 (${trendData.insight})`;
+        const prompt = buildAnalysisPrompt(keyword, candidates, competitorTitles, promptComments, whyNowContext);
 
         // 3. AI Refinement
         const keys = [process.env.GROQ_API_KEY, process.env.GROQ_API_KEY_2, process.env.GROQ_API_KEY_3].filter(Boolean) as string[];
         if (keys.length === 0) {
             return NextResponse.json({ error: "Groq API keys not configured." }, { status: 503 });
         }
-
-        // Deduct credit
-        await deductUserCredits(dbUser.id, 1, "Web Competitor Analysis");
 
         let rawAiText = "";
         let aiSuccess = false;
@@ -142,7 +161,7 @@ export async function POST(req: NextRequest) {
                         { role: "user", content: prompt },
                     ],
                     maxOutputTokens: 1500,
-                    temperature: 0.3,
+                    temperature: 0.2,
                 });
                 rawAiText = result.text;
                 aiSuccess = true;
@@ -172,20 +191,19 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "AI output schema validation failed." }, { status: 502 });
         }
 
-        const scanResult = validationResult.data;
-
-        // 5. Compute Enhanced Analytics
-        const velocityData = computeVelocityScore(videos);
-        const saturationData = computeSaturationScore(searchResults);
-        const frustrationData = computeFrustrationScore(comments);
-        const engagementData = computeEngagementScore(videos);
-        const trendData = computeTrendMomentum(videos);
-        const competitionData = computeCompetitionScore(searchResults);
-        const scheduleData = computeOptimalUploadSchedule(videos);
-        const suggestedTags = generateOptimalTags(keyword, videos, frustrationData.topKeywords);
+        let scanResult = validationResult.data;
 
         const avgViews = videos.length > 0 ? videos.reduce((s, v) => s + v.views, 0) / videos.length : 10000;
         const revenueEstimate = estimateRevenue(avgViews, keyword);
+
+        const provenance = buildAnalysisProvenance({
+            competitorsRequested: competitors.length,
+            competitorsResolved,
+            videos: videos.length,
+            comments: evidencePool.length,
+            searchResults: searchResults.length,
+            dataConfidence: candidates[0]?.scores.confidence ?? 0,
+        });
 
         const analyticsPayload = {
             velocity: { score: velocityData.score, insight: velocityData.insight, weeklyGrowthRate: velocityData.weeklyGrowthRate },
@@ -197,14 +215,44 @@ export async function POST(req: NextRequest) {
             uploadSchedule: { bestDay: scheduleData.bestDay, bestHour: scheduleData.bestHour, insight: scheduleData.insight },
             revenueEstimate: { low: revenueEstimate.low, mid: revenueEstimate.mid, high: revenueEstimate.high },
             suggestedTags: suggestedTags.slice(0, 20),
+            provenance,
         };
 
+        const structuredReasons = [
+            { type: "velocity", label: "Recent performance delta", value: (velocityData.weeklyGrowthRate ?? 0) > 0 ? "+" + Math.round(velocityData.weeklyGrowthRate ?? 0) + "%" : Math.round(velocityData.weeklyGrowthRate ?? 0) + "%", source: "youtube_video_sample" },
+            { type: "saturation", label: "Competition", value: saturationData.competitionLevel ?? "Unknown", source: "saturation" },
+            { type: "sample", label: "Evidence sample", value: `${videos.length} videos · ${evidencePool.length} comments`, source: "youtube_data_api" }
+        ];
+
+        scanResult = {
+            ...scanResult,
+            gaps: scanResult.gaps.map((gap, index) => {
+                const candidate = candidates[index] ?? candidates[0];
+                const evidenceComments = (gap.evidenceComments ?? [])
+                    .map(evidence => evidencePool.find(comment => comment.id === evidence.commentId))
+                    .filter((comment): comment is typeof evidencePool[number] => Boolean(comment))
+                    .map(comment => ({ commentId: comment.id, text: comment.text, likes: comment.likeCount ?? 0 }));
+
+                return {
+                    ...gap,
+                    id: crypto.randomUUID(),
+                    gapScore: candidate?.scores.compositeScore ?? 0,
+                    confidence: candidate?.scores.confidence ?? 0,
+                    evidenceComments,
+                    quantitativeReasons: structuredReasons,
+                };
+            })
+        };
+
+        // Charge only after the model response is parsed, validated, and grounded.
+        await deductUserCredits(dbUser.id, 1, "Web Competitor Analysis");
+
         // 6. Save to DB
-        const user = await getUserByEmail(session.user.email);
-        if (user) {
-            try {
+        const scanId = crypto.randomUUID();
+        try {
                 await db.insert(scans).values({
-                    userId: user.id,
+                    id: scanId,
+                    userId: dbUser.id,
                     channelId,
                     keyword,
                     competitors,
@@ -217,9 +265,8 @@ export async function POST(req: NextRequest) {
                     result: scanResult,
                     analytics: analyticsPayload,
                 });
-            } catch (dbError) {
-                console.error("[Web Analyze DB Error]", dbError);
-            }
+        } catch (dbError) {
+            console.error("[Web Analyze DB Error]", dbError);
         }
 
         return NextResponse.json({
@@ -229,6 +276,7 @@ export async function POST(req: NextRequest) {
             overallOpportunity: scanResult.overallOpportunity,
             recommendedNiche: scanResult.recommendedNiche,
             analytics: analyticsPayload,
+            scanId,
         });
 
     } catch (error) {

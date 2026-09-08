@@ -1,102 +1,53 @@
-"use client";
+import { CheckCircle2, XCircle } from "lucide-react";
 
-import { motion, Variants } from "framer-motion";
-
-type CellValue = boolean | "partial";
-
-type Row = { feature: string; us: CellValue; vidiq: CellValue; tubebuddy: CellValue; note: string; };
-
-// Honest comparison — VidIQ and TubeBuddy do have basic keyword/competitor tools on paid plans.
-// Showing partial ticks is more credible than claiming they have zero features.
-const ROWS: Row[] = [
-    { feature: "Find untapped video topics",         us: true,  vidiq: false, tubebuddy: false, note: "" },
-    { feature: "Chrome Extension",                   us: true,  vidiq: true,  tubebuddy: true,  note: "VidIQ & TubeBuddy have extensions but can't scan for content gaps" },
-    { feature: "AI Writing Studio",                  us: true,  vidiq: false, tubebuddy: false, note: "" },
-    { feature: "See what competitors missed",         us: true,  vidiq: "partial", tubebuddy: "partial", note: "Others offer basic tracking, not gap-specific scoring" },
-    { feature: "Competitor alerts (Watchtower)",      us: true,  vidiq: false, tubebuddy: false, note: "" },
-    { feature: "Read what viewers are asking for",   us: true,  vidiq: false, tubebuddy: false, note: "" },
-    { feature: "Free to use",                         us: true,  vidiq: false, tubebuddy: false, note: "VidIQ & TubeBuddy require paid plans for most features" },
+const DOES = [
+    "Samples recent competitor uploads and keyword search results",
+    "Finds repeated needs in public top-level comments",
+    "Keeps opportunity scores separate from AI-written creative drafts",
+    "Stores the evidence sample, collection time, and scoring version",
 ];
 
-const Tick = ({ on, highlight }: { on: CellValue; highlight?: boolean }) => {
-    if (on === "partial") {
-        return (
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-amber-400 border border-amber-500/30">
-                ~
-            </span>
-        );
-    }
-    if (on) {
-        return (
-            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${highlight ? "bg-emerald-600 text-white" : "text-emerald-400"}`}>
-                ✓
-            </span>
-        );
-    }
-    return <span className="text-zinc-800 text-sm">—</span>;
-};
-
-const tableVariant: Variants = {
-    hidden: { opacity: 0, y: 24 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
-};
+const DOES_NOT = [
+    "Promise views, revenue, ranking, or channel growth",
+    "Expose competitors' private CTR, retention, or audience data",
+    "Treat a small search sample as exact market demand",
+    "Present an AI-written claim as verified evidence",
+];
 
 export default function WhySection() {
     return (
-        <section id="why-gaptuber" className="py-20 px-5 bg-[#0c0c0e] border-t border-[#1e1e22]">
-            <div className="max-w-6xl mx-auto">
-                <motion.div
-                    variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } } as Variants}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: "-80px" }}
-                    className="mb-12"
-                >
-                    <p className="text-xs font-mono text-zinc-600 tracking-widest uppercase mb-5">Comparison</p>
-                    <h2 className="text-3xl font-bold text-white mb-3 leading-tight">
-                        Why creators choose GapTuber over VidIQ &amp; TubeBuddy.
-                    </h2>
-                    <p className="text-zinc-500 text-sm">More features. Easier to understand. Free during early access.</p>
-                </motion.div>
+        <section id="why-gaptuber" className="border-t border-[#1e1e22] bg-[#0c0c0e] px-5 py-20" aria-labelledby="why-heading">
+            <div className="mx-auto max-w-6xl">
+                <div className="mb-10 max-w-2xl">
+                    <p className="mb-4 font-mono text-xs uppercase tracking-widest text-zinc-600">Clear boundaries</p>
+                    <h2 id="why-heading" className="text-3xl font-bold leading-tight text-white">Useful intelligence without fake certainty.</h2>
+                    <p className="mt-3 text-base leading-relaxed text-zinc-500">The product is designed to narrow your next-video choices. Your packaging, execution, audience fit, and timing still decide the result.</p>
+                </div>
 
-                <motion.div
-                    variants={tableVariant}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: "-60px" }}
-                    className="border border-[#1e1e22] rounded-xl overflow-hidden"
-                >
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="border-b border-[#1e1e22]">
-                                <th className="text-left px-5 py-3.5 text-xs font-mono text-zinc-600 uppercase tracking-widest w-1/2">Feature</th>
-                                <th className="px-4 py-3.5 text-center">
-                                    <span className="text-xs font-semibold text-white bg-emerald-600 px-3 py-1 rounded-md">GapTuber</span>
-                                </th>
-                                <th className="px-4 py-3.5 text-center text-xs font-mono text-zinc-600 uppercase">VidIQ</th>
-                                <th className="px-4 py-3.5 text-center text-xs font-mono text-zinc-600 uppercase">TubeBuddy</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {ROWS.map((row, i) => (
-                                <tr key={row.feature} className={`border-b border-[#1e1e22] last:border-0 ${i % 2 === 1 ? "bg-[#111113]" : ""}`}>
-                                    <td className="px-5 py-3 text-zinc-400">
-                                        {row.feature}
-                                        {row.note && (
-                                            <span className="ml-2 text-[10px] text-zinc-600 hidden sm:inline">({row.note})</span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-center"><Tick on={row.us} highlight /></td>
-                                    <td className="px-4 py-3 text-center"><Tick on={row.vidiq} /></td>
-                                    <td className="px-4 py-3 text-center"><Tick on={row.tubebuddy} /></td>
-                                </tr>
+                <div className="grid overflow-hidden rounded-xl border border-[#1e1e22] md:grid-cols-2">
+                    <div className="bg-[#111113] p-6 sm:p-8">
+                        <h3 className="text-base font-semibold text-emerald-300">What GapTuber can support</h3>
+                        <ul className="mt-5 space-y-4">
+                            {DOES.map(item => (
+                                <li key={item} className="flex items-start gap-3 text-sm leading-relaxed text-zinc-400">
+                                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden="true" />
+                                    {item}
+                                </li>
                             ))}
-                        </tbody>
-                    </table>
-                </motion.div>
-                <p className="text-xs text-zinc-700 mt-4">
-                    ✓ = Full feature&nbsp;&nbsp;~ = Partial / paid-only&nbsp;&nbsp;— = Not available
-                </p>
+                        </ul>
+                    </div>
+                    <div className="border-t border-[#1e1e22] bg-[#0f0f11] p-6 sm:p-8 md:border-l md:border-t-0">
+                        <h3 className="text-base font-semibold text-zinc-300">What it cannot know</h3>
+                        <ul className="mt-5 space-y-4">
+                            {DOES_NOT.map(item => (
+                                <li key={item} className="flex items-start gap-3 text-sm leading-relaxed text-zinc-500">
+                                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-zinc-600" aria-hidden="true" />
+                                    {item}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
             </div>
         </section>
     );

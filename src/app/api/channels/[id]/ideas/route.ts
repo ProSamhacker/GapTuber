@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { ideaVault } from "@/db/schema";
+import { ideaVault, scans } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getChannelById } from "@/db/queries";
 
@@ -37,6 +37,35 @@ export async function POST(
             return NextResponse.json({ success: true, message: "Script attached to existing idea in vault" });
         }
 
+        let frozenData: any = {};
+
+        if (body.scanId && body.gapId) {
+            // Securely fetch from DB
+            const scanRecord = await db.query.scans.findFirst({
+                where: and(
+                    eq(scans.id, body.scanId),
+                    eq(scans.userId, session.user.id) // Ensure scan belongs to user
+                )
+            });
+
+            if (scanRecord && scanRecord.result && (scanRecord.result as any).gaps) {
+                const originalGap = (scanRecord.result as any).gaps.find((g: any) => g.id === body.gapId);
+                if (originalGap) {
+                    frozenData = {
+                        opportunityScoreAtRecommendation: originalGap.gapScore,
+                        confidenceAtRecommendation: originalGap.confidence,
+                        recommendationSignals: {
+                            quantitativeReasons: originalGap.quantitativeReasons,
+                            overallOpportunity: (scanRecord.result as any).overallOpportunity,
+                            commentInsights: (scanRecord.rawData as any)?.commentInsights
+                        },
+                        recommendedAt: new Date(),
+                        scoringVersion: "v1.3" // Snapshot version
+                    };
+                }
+            }
+        }
+
         const inserts = [{
             channelId: id,
             title: body.title || "Untitled Idea",
@@ -48,6 +77,7 @@ export async function POST(
             source: "ai_studio" as const,
             whyItWorks: body.whyItWorks || body.reasoning || "",
             script: body.script || "",
+            ...frozenData
         }];
 
         await db.insert(ideaVault).values(inserts);

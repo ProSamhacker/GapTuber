@@ -110,14 +110,14 @@ export default function Hero() {
                                     Start for free →
                                 </Link>
                             )}
-                            <a
-                                href="#"
-                                title="GapTuber Chrome Extension — coming soon to Chrome Web Store"
-                                className="flex items-center gap-2 border border-[#2a2a30] hover:border-zinc-600 text-zinc-400 hover:text-zinc-200 px-4 py-2.5 rounded-md text-sm transition-all"
+                            <span
+                                aria-disabled="true"
+                                title="Chrome Web Store release is not available yet"
+                                className="flex cursor-not-allowed items-center gap-2 rounded-md border border-[#2a2a30] px-4 py-2.5 text-sm text-zinc-600"
                             >
                                 <Chrome className="w-4 h-4" />
-                                Get Extension
-                            </a>
+                                Extension coming soon
+                            </span>
                             <a href="#how-it-works" className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
                                 How it works
                             </a>

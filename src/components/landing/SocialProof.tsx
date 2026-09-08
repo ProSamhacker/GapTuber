@@ -1,61 +1,43 @@
-const STATS = [
-    { value: "332+", label: "Reddit views in 24h post" },
-    { value: "50K+", label: "Views from a single gap signal" },
-    { value: "9.1", label: "Top gap score recorded" },
-];
+import { Braces, Database, ShieldCheck } from "lucide-react";
 
-const QUOTES = [
+const TRUST_POINTS = [
     {
-        text: "This showed me angles I completely overlooked. Found a gap with a 9.1 score that no one was covering.",
-        who: "Beta Tech Creator · 12k subs",
+        icon: Database,
+        title: "Official public data",
+        text: "Video, channel, search-result, and comment samples come from the YouTube Data API v3 and include a collection timestamp.",
     },
     {
-        text: "Finally something beyond keyword suggestions. The statistical gap scoring is a game-changer.",
-        who: "AI Reviewer · Tech & AI niche",
+        icon: Braces,
+        title: "Scores stay deterministic",
+        text: "The server calculates opportunity scores from the sample. AI can draft creative ideas, but it cannot raise a score.",
     },
     {
-        text: "I found a gap with 8.9 score that had no competition. Posted it — hit 50k views in a week.",
-        who: "Developer Educator · 45k subs",
+        icon: ShieldCheck,
+        title: "Evidence is verifiable",
+        text: "A comment appears as evidence only when the model returns an ID that matches a real comment in the collected sample.",
     },
 ];
 
 export default function SocialProof() {
     return (
-        <section className="py-20 px-5 bg-[#0c0c0e] border-t border-[#1e1e22]">
-            <div className="max-w-6xl mx-auto">
-                {/* Stats row */}
-                <div className="grid grid-cols-3 gap-0 border border-[#1e1e22] rounded-xl overflow-hidden mb-16">
-                    {STATS.map((s, i) => (
-                        <div
-                            key={s.label}
-                            className={`px-8 py-7 ${i < STATS.length - 1 ? "border-r border-[#1e1e22]" : ""}`}
-                        >
-                            <p className="text-4xl font-extrabold text-white mb-1 tracking-tight">{s.value}</p>
-                            <p className="text-sm text-zinc-500">{s.label}</p>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Quotes */}
-                <div className="mb-6">
-                    <p className="text-xs font-mono text-zinc-600 tracking-widest uppercase mb-8">Early feedback</p>
-                    <div className="grid md:grid-cols-3 gap-6">
-                        {QUOTES.map((q, i) => (
-                            <div key={i} className="border-l-2 border-emerald-600 pl-5">
-                                <p className="text-sm text-zinc-400 leading-relaxed mb-3">"{q.text}"</p>
-                                <p className="text-xs text-zinc-600 font-mono">{q.who}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Reddit mention */}
-                <div className="mt-10 flex items-start gap-4 bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
-                    <span className="flex-shrink-0 text-orange-500 font-bold text-sm font-mono mt-0.5">r/NewTubers</span>
-                    <p className="text-sm text-zinc-400 italic">
-                        "Niice, it looks useful for sure!! Been looking for something like this for ages." —{" "}
-                        <span className="text-zinc-600 not-italic">Any_Fisherman_2877</span>
+        <section className="border-t border-[#1e1e22] bg-[#0c0c0e] px-5 py-20" aria-labelledby="trust-heading">
+            <div className="mx-auto max-w-6xl">
+                <div className="mb-10 max-w-2xl">
+                    <p className="mb-4 font-mono text-xs uppercase tracking-widest text-sky-400">How trust is earned</p>
+                    <h2 id="trust-heading" className="text-3xl font-bold leading-tight text-white">See what is measured, estimated, and AI-written.</h2>
+                    <p className="mt-3 text-base leading-relaxed text-zinc-500">
+                        GapTuber does not have access to private impressions, click-through rate, retention, search volume, audience geography, or creator revenue. It should help you choose experiments—not promise views.
                     </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                    {TRUST_POINTS.map(point => (
+                        <article key={point.title} className="rounded-xl border border-[#1e1e22] bg-[#111113] p-5">
+                            <point.icon className="mb-5 h-5 w-5 text-emerald-400" aria-hidden="true" />
+                            <h3 className="text-base font-semibold text-zinc-100">{point.title}</h3>
+                            <p className="mt-2 text-sm leading-relaxed text-zinc-500">{point.text}</p>
+                        </article>
+                    ))}
                 </div>
             </div>
         </section>

@@ -12,10 +12,10 @@ const BEFORE = [
 ];
 
 const AFTER = [
-    { icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10", label: "Spot rising channels early", desc: "See which channels and topics are gaining momentum before everyone else jumps on them." },
-    { icon: Pickaxe, color: "text-rose-400", bg: "bg-rose-500/10", label: "Mine viewer complaints", desc: "AI reads thousands of comments to find exactly what viewers hate about existing videos — and what they wish existed." },
-    { icon: Target, color: "text-blue-500", bg: "bg-blue-500/10", label: "Score every opportunity", desc: "Each video idea gets a simple score from 1–10, so you always know which one is worth filming first." },
-    { icon: Radar, color: "text-emerald-500", bg: "bg-emerald-500/10", label: "Watch competitors 24/7", desc: "Get an alert the moment a competitor posts a video that takes off — so you can react before it's too late." },
+    { icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10", label: "Compare recent performance", desc: "Use age-normalized public view data to spot videos that outperform the current competitor sample." },
+    { icon: Pickaxe, color: "text-rose-400", bg: "bg-rose-500/10", label: "Mine viewer questions", desc: "Review a bounded sample of public comments and preserve the exact comments behind each supported idea." },
+    { icon: Target, color: "text-blue-500", bg: "bg-blue-500/10", label: "Prioritize experiments", desc: "Each idea gets a deterministic opportunity score plus a separate data-coverage rating, so you can choose what to test next." },
+    { icon: Radar, color: "text-emerald-500", bg: "bg-emerald-500/10", label: "Track selected competitors", desc: "Monitor selected channels for new public uploads and review the signals before deciding whether to respond." },
 ];
 
 const containerVariants: Variants = {

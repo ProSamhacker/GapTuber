@@ -17,7 +17,12 @@ import {
 import { getSearchResults } from "@/lib/youtube-server";
 import { db } from "@/db";
 import { competitorMonitors, competitorInsights, ideaVault } from "@/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
+import {
+    buildOutcomeLearningProfile,
+    formatOutcomeLearningContext,
+    getOutcomeAdjustment,
+} from "@/lib/engine/outcome-learning";
 
 export const maxDuration = 300; // Fluid Compute: 5 minute max on Vercel Hobby plan
 
@@ -88,6 +93,8 @@ export async function POST(req: NextRequest) {
         const allVaultIdeas = await db.query.ideaVault.findMany({
             where: (iv, { eq }) => eq(iv.channelId, channelId),
         });
+        const outcomeLearning = buildOutcomeLearningProfile(allVaultIdeas);
+        const outcomeLearningBlock = formatOutcomeLearningContext(outcomeLearning);
 
         let actualChannelStats = channelStats;
         let actualRecentVideos = recentVideos || [];
@@ -354,7 +361,7 @@ COMPUTED INTERNAL GAP SIGNALS:
 
 THEIR TOP RECENT VIDEOS (Ground Truth API Data):
 ${topVideos}
-${marketContextBlock}${audienceMiningBlock}${watchtowerBlock}${timingBlock}
+${marketContextBlock}${audienceMiningBlock}${watchtowerBlock}${timingBlock}${outcomeLearningBlock}
 ── MANDATORY OUTPUT SEGMENTATION ──
 Distribute the 5 ideas exactly as follows. Start the "format" field with the segment prefix:
 1. DISCOVERY | <format> — SEO video targeting a specific keyword cluster to attract brand-new viewers.
@@ -388,10 +395,11 @@ Output exactly 5 blueprints matching this segmentation.`;
                 if (rawText.startsWith("```json")) rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
                 else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
                 
-                const parsed = JSON.parse(rawText);
-                videoIdeas = parsed.videoIdeas || parsed;
-                // Validate if needed
-                if (!Array.isArray(videoIdeas)) throw new Error("Not an array");
+                const parsedJson: unknown = JSON.parse(rawText);
+                const normalized = Array.isArray(parsedJson) ? { videoIdeas: parsedJson } : parsedJson;
+                const validated = ResponseSchema.safeParse(normalized);
+                if (!validated.success) throw new Error(`Invalid AI response: ${validated.error.message}`);
+                videoIdeas = validated.data.videoIdeas;
                 break;
             } catch (err) {
                 lastError = err;
@@ -404,15 +412,35 @@ Output exactly 5 blueprints matching this segmentation.`;
             return NextResponse.json({ error: "AI generation failed" }, { status: 503 });
         }
 
-        // Save to database
-        // 1. Clear out old system-generated ideas
+        // Within each mandatory segment, rank ideas using creator-specific measured
+        // outcomes. This is deterministic; the model cannot invent the adjustment.
+        const rankSegment = (ideas: z.infer<typeof VideoIdeaSchema>[]) => [...ideas].sort((a, b) =>
+            getOutcomeAdjustment(outcomeLearning, b.signalSource).adjustment
+            - getOutcomeAdjustment(outcomeLearning, a.signalSource).adjustment
+        );
+        videoIdeas = [
+            ...rankSegment(videoIdeas.slice(0, 2)),
+            ...rankSegment(videoIdeas.slice(2, 4)),
+            ...videoIdeas.slice(4),
+        ];
+
+        // Save to database. Preserve anything the creator has acted on or linked;
+        // those records are the training history for future recommendations.
         await db.delete(ideaVault).where(
-            and(eq(ideaVault.channelId, channelId), eq(ideaVault.source, "system"))
+            and(
+                eq(ideaVault.channelId, channelId),
+                eq(ideaVault.source, "system"),
+                eq(ideaVault.status, "backlog"),
+                isNull(ideaVault.youtubeVideoId),
+            )
         );
 
         // 2. Insert new ideas
         if (videoIdeas && videoIdeas.length > 0) {
-            const inserts = videoIdeas.map(idea => ({
+            const inserts = videoIdeas.map(idea => {
+                const learned = getOutcomeAdjustment(outcomeLearning, idea.signalSource);
+                const baseOpportunity = idea.estimatedViewPotential === "high" ? 80 : idea.estimatedViewPotential === "medium" ? 60 : 40;
+                return {
                 channelId: channelId,
                 title: idea.title || "Untitled Idea",
                 hook: idea.hook,
@@ -426,14 +454,43 @@ Output exactly 5 blueprints matching this segmentation.`;
                 script: "",
                 description: "",
                 tags: [],
-            }));
+                opportunityScoreAtRecommendation: Math.min(100, Math.round(baseOpportunity * learned.adjustment)),
+                confidenceAtRecommendation: confidenceScore / 100,
+                recommendationSignals: {
+                    liveSignals: {
+                        velocity: velocitySignal.score,
+                        abandonment: abandonmentSignal.score,
+                        trend: trendSignal.score,
+                    },
+                    outcomeLearning: {
+                        version: outcomeLearning.version,
+                        active: outcomeLearning.active,
+                        source: idea.signalSource || "unknown",
+                        sampleSize: learned.sampleSize,
+                        adjustment: learned.adjustment,
+                        confidence: learned.confidence,
+                    },
+                },
+                recommendedAt: new Date(),
+                scoringVersion: `v2.0+${outcomeLearning.version}`,
+            }});
             await db.insert(ideaVault).values(inserts);
         }
 
         // Deduct credit
         await deductUserCredits(dbUser.id, 1, "Idea Generation");
 
-        return NextResponse.json({ success: true, videoIdeas, confidenceScore, timingData });
+        return NextResponse.json({
+            success: true,
+            videoIdeas,
+            confidenceScore,
+            timingData,
+            outcomeLearning: {
+                active: outcomeLearning.active,
+                sampleSize: outcomeLearning.sampleSize,
+                version: outcomeLearning.version,
+            },
+        });
 
     } catch (err) {
         logger.error("[GENERATE_IDEAS_ERROR]", err);

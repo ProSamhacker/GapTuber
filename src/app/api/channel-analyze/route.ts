@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createGroq } from "@ai-sdk/groq";
 import { generateText } from "ai";
-import { getRandomYouTubeApiKey } from "@/lib/youtube-server";
+import { getChannelIdFromHandle, getRandomYouTubeApiKey } from "@/lib/youtube-server";
 import { decode } from "next-auth/jwt";
 import { auth } from "@/auth";
 import { resolveUserFromRequest } from "@/lib/resolve-user";
@@ -22,8 +22,7 @@ import {
     computeMarketUniquenessScore,
     computeMarketTrendVelocity,
 } from "@/lib/engine/market-intelligence";
-import { ChannelAnalysisSchema } from "@/lib/engine/channel-schemas";
-import { fetchFullChannelData } from "@/lib/engine/youtube-api";
+import { ChannelAnalysisSchema, type ContentCluster } from "@/lib/engine/channel-schemas";
 import { z } from "zod";
 import { getCorsHeaders } from "@/lib/cors";
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
@@ -40,8 +39,19 @@ export async function OPTIONS(req: NextRequest) {
 // ─── Input Schema ─────────────────────────────────────────────────────────────
 
 const RequestSchema = z.object({
-    channelUrl: z.string().url("Must be a valid YouTube channel URL"),
-    videos: z.array(z.any()).optional(),
+    channelUrl: z.string().url("Must be a valid YouTube channel URL").refine((value) => {
+        const hostname = new URL(value).hostname.toLowerCase();
+        return hostname === "youtube.com" || hostname.endsWith(".youtube.com");
+    }, "Must be a YouTube channel URL"),
+    videos: z.array(z.object({
+        title: z.string().min(1).max(300),
+        views: z.coerce.number().nonnegative(),
+        likes: z.coerce.number().nonnegative().optional().default(0),
+        comments: z.coerce.number().nonnegative().optional().default(0),
+        uploadDate: z.string().min(1),
+        channel: z.string().optional(),
+        duration: z.string().optional(),
+    })).max(200).optional(),
     channelInfo: z.object({
         name: z.string(),
         subscribers: z.coerce.number()
@@ -96,9 +106,6 @@ export async function POST(req: NextRequest) {
     } catch { /* non-blocking if auth fails — continue */ }
 
     // ── Use Scraped Data (No API Key Required) ───────────────────────────────
-    let channelInfo: { channelName: string; handle: string; subscriberCount: number; totalVideoCount: number; description: string };
-    let ytVideos: any[];
-
     // ── Auth & Credit Check ──
     const dbUser = await resolveUserFromRequest(req);
     if (!dbUser) {
@@ -115,7 +122,7 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    channelInfo = {
+    const channelInfo = {
         channelName: scrapedInfo.name,
         handle: new URL(channelUrl).pathname.split("/")[1] || "",
         subscriberCount: scrapedInfo.subscribers,
@@ -123,7 +130,7 @@ export async function POST(req: NextRequest) {
         description: "Scraped channel analysis"
     };
 
-    ytVideos = videos.map((v: any) => ({
+    const ytVideos = videos.map((v) => ({
         title: String(v.title || ""),
         views: Number(v.views) || 0,
         likes: Number(v.likes) || 0,
@@ -166,14 +173,14 @@ export async function POST(req: NextRequest) {
 
     // Inject richer stats that only API provides
     const enrichedPrompt = basePrompt.replace(
-        "COMPUTED DATA SIGNALS",
+        "COMPUTED CHANNEL DATA SIGNALS",
         `CHANNEL STATS (from YouTube API — ${ytVideos.length} videos analyzed):
 - Subscribers: ${channelInfo.subscriberCount.toLocaleString()}
 - Total Videos: ${channelInfo.totalVideoCount.toLocaleString()} (analyzed: ${ytVideos.length})
 - Avg Likes/Video: ${avgLikesPerVideo.toLocaleString()}
 - Avg Comments/Video: ${avgCommentsPerVideo.toLocaleString()}
 
-COMPUTED DATA SIGNALS`
+COMPUTED CHANNEL DATA SIGNALS`
     );
 
     // ── Groq AI Analysis ─────────────────────────────────────────────────────
@@ -182,9 +189,6 @@ COMPUTED DATA SIGNALS`
         process.env.GROQ_API_KEY_2,
         process.env.GROQ_API_KEY_3
     ].filter(Boolean) as string[];
-
-    // Deduct 1 credit for analysis
-    await deductUserCredits(dbUser.id, 1, "Extension Channel Analysis");
 
     if (keys.length === 0) {
         return NextResponse.json(
@@ -196,7 +200,7 @@ COMPUTED DATA SIGNALS`
 
     let rawText: string = "";
     let success = false;
-    let lastError: any = null;
+    let lastError: unknown = null;
 
     const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
 
@@ -218,7 +222,7 @@ COMPUTED DATA SIGNALS`
             rawText = result.text;
             success = true;
             break;
-        } catch (aiErr: any) {
+        } catch (aiErr: unknown) {
             lastError = aiErr;
             logger.warn("[Key Rotation ChannelAnalyze] Key failed, trying next...");
         }
@@ -268,6 +272,7 @@ COMPUTED DATA SIGNALS`
             if (data) {
                 marketDataMap.set(kw.keyword, {
                     keyword: kw.keyword,
+                    collectedAt: data.collectedAt,
                     avgViews: data.avgViews,
                     avgCompetitorSubscribers: data.avgCompetitorSubscribers,
                     recentUploadRate: data.recentUploadRate,
@@ -346,9 +351,11 @@ COMPUTED DATA SIGNALS`
             .slice(0, 15)
             .map(([w]) => w.toLowerCase())
     );
-    const validCompetitors = analysis.competitors
+    const verifiedCompetitors = await Promise.all(analysis.competitors
         .filter((c) => /^@[a-zA-Z0-9_.\-]{2,}$/.test(c.handle))
-        .map((c) => {
+        .map(async (c) => {
+            const resolvedChannelId = await getChannelIdFromHandle(c.handle, apiKey).catch(() => null);
+            if (!resolvedChannelId) return null;
             // Count how many channel topic words appear in competitor handle + reason text
             const competitorText = `${c.handle} ${c.name ?? ""} ${c.reason}`.toLowerCase()
                 .replace(/[^a-z0-9\s]/g, " ");
@@ -356,8 +363,9 @@ COMPUTED DATA SIGNALS`
             const overlapCount = [...channelTopWords].filter(w => competitorWords.has(w)).length;
             // Normalize: 0 matching words = 20% (different niches but related), 5+ words = 90%
             const topicOverlap = Math.min(90, Math.max(20, Math.round(20 + overlapCount * 14)));
-            return { ...c, topicOverlap, aiSuggested: true };
-        });
+            return { ...c, topicOverlap, verified: true, resolvedChannelId };
+        }));
+    const validCompetitors = verifiedCompetitors.filter((competitor): competitor is NonNullable<typeof competitor> => competitor !== null);
 
     // ── Optional: persist to DB ───────────────────────────────────────────────
     try {
@@ -425,10 +433,12 @@ COMPUTED DATA SIGNALS`
     const uploadDays: Record<string, number> = {};
     const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     for (const v of ytVideos) {
-        const day = DAYS[new Date(v.uploadDate).getDay()];
+        const uploadDate = new Date(v.uploadDate);
+        if (Number.isNaN(uploadDate.getTime())) continue;
+        const day = DAYS[uploadDate.getUTCDay()];
         uploadDays[day] = (uploadDays[day] ?? 0) + 1;
     }
-    const bestUploadDay = Object.entries(uploadDays).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Tuesday";
+    const bestUploadDay = Object.entries(uploadDays).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Unknown";
 
     // Top performing video analysis
     const topPerformers = [...ytVideos]
@@ -452,8 +462,8 @@ COMPUTED DATA SIGNALS`
         .join(" ");
 
     try {
-        const gapFetches = enrichedGaps.map(async (gap: any, gapIdx: number) => {
-            const clusterKey = gap.clusterName ?? gap.cluster ?? gap.topic;
+        const gapFetches = enrichedGaps.map(async (gap: ContentCluster) => {
+            const clusterKey = gap.clusterName;
             if (!clusterKey || !apiKey) return gap;
 
             // Build a more specific search query by combining cluster with the channel's real niche
@@ -462,36 +472,49 @@ COMPUTED DATA SIGNALS`
 
             if (marketData) {
                 const baseVelocity = computeMarketTrendVelocity(marketData);
-                // Larger differentiation: +8 for even-indexed, -5 for odd-indexed gaps
-                // so two gaps with similar market signals still display distinct trending values
-                const offset = gapIdx % 2 === 0 ? 8 : -5;
-                const differentiatedVelocity = Math.min(100, Math.max(5, baseVelocity + offset));
+                const sampleCompetitionGap = marketData.resultCount > 0
+                    ? Math.round((marketData.lowCompetitionCount / marketData.resultCount) * 100)
+                    : 0;
+                const opportunityIndex = Math.round(baseVelocity * 0.55 + sampleCompetitionGap * 0.45);
 
                 return {
                     ...gap,
-                    trendingAcceleration: differentiatedVelocity,
+                    trendingAcceleration: baseVelocity,
+                    opportunityIndex,
                     marketSignal: {
                         avgViews: marketData.avgViews,
                         competition: marketData.avgCompetitorSubscribers > 1_000_000 ? "High"
                             : marketData.avgCompetitorSubscribers > 100_000 ? "Medium" : "Low",
                         recentUploadRate: marketData.recentUploadRate,
+                        sampleSize: marketData.resultCount,
+                        measuredAt: marketData.collectedAt,
                     },
                 };
             }
 
-            // Deterministic fallback: combine channel trend + opportunityIndex + cluster hash
-            // Use a simple hash of cluster name to ensure each gap gets a unique base offset
-            const clusterHash = [...clusterKey].reduce((h, c) => (h * 31 + c.charCodeAt(0)) & 0xff, 0);
-            const baseTrend = metrics.recentTrend === "growing" ? 55
-                : metrics.recentTrend === "stable" ? 38 : 22;
-            const oppBoost = Math.round((gap.opportunityIndex ?? (50 + clusterHash % 30)) * 0.25);
-            const positionPenalty = gapIdx * 10;
-            const deterministicTrend = Math.min(85, Math.max(10, baseTrend + oppBoost - positionPenalty));
-            return { ...gap, trendingAcceleration: deterministicTrend };
+            return {
+                ...gap,
+                trendingAcceleration: 0,
+                opportunityIndex: 0,
+                marketSignal: null,
+                dataStatus: "Insufficient current public market data",
+            };
         });
         enrichedGaps = await Promise.all(gapFetches);
         logger.debug(`[ChannelAnalyze] Enriched ${enrichedGaps.length} content opportunity gaps with market data`);
-    } catch { /* non-fatal — keep AI-generated values */ }
+    } catch {
+        // Never preserve AI-generated numeric market claims after a failed lookup.
+        enrichedGaps = enrichedGaps.map((gap) => ({
+            ...gap,
+            trendingAcceleration: 0,
+            opportunityIndex: 0,
+            marketSignal: null,
+            dataStatus: "Current public market lookup failed",
+        }));
+    }
+
+    // Charge only after the response has passed validation and grounding.
+    await deductUserCredits(dbUser.id, 1, "Extension Channel Analysis");
 
 
     return NextResponse.json(
@@ -524,7 +547,7 @@ COMPUTED DATA SIGNALS`
                 monthlyRevenueLow,
                 monthlyRevenueHigh,
                 cpmRange,
-                note: "Estimates based on niche CPM benchmarks and 45% monetized view rate",
+                note: "Illustrative advertising scenario only; this is not observed channel revenue. Actual RPM, monetized playback rate, geography, and eligibility are unavailable.",
             } : {
                 estimatedMonthlyViews: null,
                 monthlyRevenueLow: null,
@@ -536,6 +559,7 @@ COMPUTED DATA SIGNALS`
                 bestDay: bestUploadDay,
                 dayDistribution: uploadDays,
                 currentFrequency: `${metrics.postsPerWeek} videos/week`,
+                note: "Most common observed publishing day in the supplied sample; not a proven best time or audience-activity measurement.",
             },
             topPerformers,
             niche: analysis.niche,

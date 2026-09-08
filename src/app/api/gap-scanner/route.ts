@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createGroq } from "@ai-sdk/groq";
 import { generateText } from "ai";
 import { z } from "zod";
-import { auth } from "@/auth";
-import { decode } from "next-auth/jwt";
 import { db } from "@/db";
 import { scans } from "@/db/schema";
-import { getUserByEmail, deductUserCredits } from "@/db/queries";
+import { deductUserCredits, getChannelById, getChannelsByUserId } from "@/db/queries";
 import { resolveUserFromRequest } from "@/lib/resolve-user";
 import { getCorsHeaders } from "@/lib/cors";
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
@@ -26,8 +24,13 @@ export async function OPTIONS(req: NextRequest) {
 
 const GapItemSchema = z.object({
     title: z.string().describe("Specific, clickable YouTube video title addressing the gap"),
-    gapScore: z.number().min(1).max(10).describe("How strong this content gap is (1–10)"),
+    gapScore: z.number().min(1).max(10).describe("Placeholder score; replaced by the server"),
+    confidence: z.number().min(0).max(1).optional().default(0),
     reasoning: z.string().describe("Why this gap exists based on comment evidence"),
+    whyNow: z.string().describe("Why you should make this video now instead of next month"),
+    evidenceComments: z.array(z.object({
+        commentId: z.string(),
+    })).max(3).describe("IDs selected verbatim from the supplied comment list"),
     hook: z.string().describe("Opening hook sentence for the video script"),
     format: z.string().describe("Recommended format e.g. 'Tutorial', 'Deep Dive', 'Comparison'"),
     monetizationAngle: z.string().describe("How to monetize this video concept"),
@@ -40,7 +43,7 @@ const GapItemSchema = z.object({
 const ResponseSchema = z.object({
     success: z.boolean(),
     keyword: z.string(),
-    gaps: z.array(GapItemSchema),
+    gaps: z.array(GapItemSchema).min(1).max(4),
     overallOpportunity: z.string().describe("1-sentence summary of the overall opportunity found"),
     commentInsights: z.object({
         totalAnalyzed: z.number(),
@@ -49,32 +52,6 @@ const ResponseSchema = z.object({
         topQuestions: z.array(z.string()).max(5),
     }),
 });
-
-// ─── Auth helper: session cookie or X-Session-Token header ────────────────────
-
-async function resolveUserEmail(req: NextRequest): Promise<string | null> {
-    try {
-        const session = await auth();
-        if (session?.user?.email) return session.user.email;
-    } catch { /* ignore */ }
-
-    const headerToken = req.headers.get("X-Session-Token");
-    if (!headerToken) return null;
-
-    const salts = [
-        "__Secure-authjs.session-token",
-        "authjs.session-token",
-        "__Secure-next-auth.session-token",
-        "next-auth.session-token",
-    ];
-    for (const salt of salts) {
-        try {
-            const decoded = await decode({ token: headerToken, secret: env.AUTH_SECRET!, salt });
-            if (decoded?.email) return decoded.email as string;
-        } catch { /* try next salt */ }
-    }
-    return null;
-}
 
 // ─── Request Body Schema ───────────────────────────────────────────────────────
 
@@ -125,6 +102,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: "Insufficient credits", message: "You need at least 1 credit to analyze." }, { status: 402, headers: corsHeaders });
         }
 
+        if (channelId) {
+            const targetChannel = await getChannelById(channelId);
+            if (!targetChannel || targetChannel.userId !== dbUser.id) {
+                return NextResponse.json({ success: false, error: "Channel not found." }, { status: 404, headers: corsHeaders });
+            }
+        }
+
         // Rate limit by user email (if authenticated) or by IP
         const userEmail = dbUser.email;
         const rateLimitKey = userEmail
@@ -160,8 +144,9 @@ export async function POST(req: NextRequest) {
         }
 
 
-        // Sort by likes DESC, take top 35
-        const sorted = [...comments]
+        // Sort by likes DESC, take top 35, ensure IDs exist
+        const sorted = comments
+            .map(c => ({ ...c, id: crypto.randomUUID() }))
             .sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0))
             .slice(0, 35);
 
@@ -180,12 +165,12 @@ export async function POST(req: NextRequest) {
             : 0;
 
         const commentText = sorted
-            .map((c, i) => `${i + 1}. [${c.likeCount ?? 0} likes] "${c.text}"`)
+            .map((c) => `[ID: ${c.id}] [${c.likeCount ?? 0} likes] "${c.text}"`)
             .join("\n");
 
-        const prompt = `You are an elite YouTube Strategy Analyst with deep expertise in content gap detection.
+        const prompt = `You are a YouTube comment-analysis assistant. The supplied comments are the complete factual record. Never invent comments, viewer intent, demand, competition, trends, revenue, or performance forecasts.
 
-Analyze the following viewer comments from a YouTube video to find HIGH-VALUE content gaps.
+Analyze the following viewer comments from one YouTube video to propose testable content hypotheses.
 
 TARGET KEYWORD: "${keyword}"
 VIDEO ANALYZED: "${videoTitle}"
@@ -200,13 +185,13 @@ YOUR MISSION:
 3. Find REQUESTS — specific use-cases, scenarios, or depths viewers wanted
 4. Find FRUSTRATIONS — pain points mentioned repeatedly by high-liked comments
 
-Based on these real viewer frustrations, generate exactly 4 specific, high-converting YouTube video concepts that:
+Based on these comments, generate 1-4 specific YouTube video concepts that:
 - Directly answer the top frustrations/questions found
 - Are specific (not generic) — backed by actual comment evidence
-- Have clear monetization potential
-- Would make someone say "FINALLY a video about this!"
+- Clearly separate observed comment evidence from your creative recommendation
+- Do not claim market demand or likely performance
 
-For overallOpportunity, write a single compelling sentence summarizing what huge opportunity exists in this comment section.
+For overallOpportunity, write one bounded sentence summarizing the strongest testable hypothesis in this sample.
 
 For commentInsights:
 - totalAnalyzed: ${sorted.length} (exact — do not change)
@@ -215,9 +200,9 @@ For commentInsights:
 - topQuestions: top 5 questions viewers asked that weren't answered`;
 
 
-        let object: any = null;
+        let object: z.infer<typeof ResponseSchema> | null = null;
         let success = false;
-        let lastError: any = null;
+        let lastError: unknown = null;
 
         const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
 
@@ -227,10 +212,10 @@ For commentInsights:
                 const result = await generateText({
                     model: groq("openai/gpt-oss-120b"),
                     messages: [
-                        { role: "system", content: "You must output ONLY valid JSON that strictly matches the required schema. No markdown fences, no explanatory text." },
-                        { role: "user", content: prompt + `\n\nREQUIRED JSON SCHEMA:\n${JSON.stringify({ success: true, keyword: "string", gaps: [{ title: "string", gapScore: "number", reasoning: "string", hook: "string", format: "string", monetizationAngle: "string", targetAudience: "string", competitorWeakness: "string", contentOutline: ["string"], seoTips: ["string"] }], overallOpportunity: "string", commentInsights: { totalAnalyzed: "number", frustrationRate: "number", topPainPoints: ["string"], topQuestions: ["string"] } }, null, 2)}` }
+                        { role: "system", content: "You must output ONLY valid JSON that strictly matches the required schema. No markdown fences, no explanatory text. For evidenceComments, return ONLY the commentId of the exact comment used as evidence." },
+                        { role: "user", content: prompt + `\n\nREQUIRED JSON SCHEMA:\n${JSON.stringify({ success: true, keyword: "string", gaps: [{ title: "string", gapScore: "number", confidence: "number", reasoning: "string", whyNow: "string", evidenceComments: [{ commentId: "string" }], hook: "string", format: "string", monetizationAngle: "string", targetAudience: "string", competitorWeakness: "string", contentOutline: ["string"], seoTips: ["string"] }], overallOpportunity: "string", commentInsights: { totalAnalyzed: "number", frustrationRate: "number", topPainPoints: ["string"], topQuestions: ["string"] } }, null, 2)}` }
                     ],
-                    temperature: 0.4,
+                    temperature: 0.2,
                 });
                 
                 let rawText = result.text.trim();
@@ -242,10 +227,46 @@ For commentInsights:
                     rawText = rawText.replace(/```json|```/g, "").trim();
                 }
                 
-                object = JSON.parse(rawText);
+                const validation = ResponseSchema.safeParse(JSON.parse(rawText));
+                if (!validation.success) throw new Error("AI output failed schema validation");
+                object = validation.data;
+
+                // Validate evidenceComments and structure
+                if (object.gaps && Array.isArray(object.gaps)) {
+                    object.gaps = object.gaps.map((gap) => {
+                        const evidenceComments = gap.evidenceComments.map((ec) => {
+                            const real = sorted.find(c => c.id === ec.commentId);
+                            if (!real) return null;
+                            return {
+                                commentId: real.id,
+                                text: real.text,
+                                likes: real.likeCount ?? 0
+                            };
+                        }).filter((comment): comment is NonNullable<typeof comment> => comment !== null);
+                        const evidenceCoverage = Math.min(1, evidenceComments.length / 2);
+                        const sampleCoverage = Math.min(1, sorted.length / 35);
+                        const gapScore = Math.round((1 + 9 * ((deterministicFrustrationRate / 100) * 0.65 + evidenceCoverage * 0.35)) * 10) / 10;
+                        const confidence = Math.round(Math.min(0.9, sampleCoverage * 0.7 + evidenceCoverage * 0.3) * 100) / 100;
+
+                        return {
+                            ...gap,
+                            id: crypto.randomUUID(),
+                            gapScore,
+                            confidence,
+                            whyNow: "This is a hypothesis grounded in the current comment sample; validate it with a small title or format test.",
+                            quantitativeReasons: [
+                            { type: "frustration", label: "Viewer Frustration", value: deterministicFrustrationRate + "%", source: "comments" }
+                            ],
+                            evidenceComments,
+                        };
+                    });
+                }
+                object.commentInsights.totalAnalyzed = sorted.length;
+                object.commentInsights.frustrationRate = deterministicFrustrationRate;
+
                 success = true;
                 break;
-            } catch (aiErr: any) {
+            } catch (aiErr: unknown) {
                 lastError = aiErr;
                 logger.warn("[Key Rotation GapScanner] Key failed, trying next...");
             }
@@ -259,42 +280,39 @@ For commentInsights:
         // ── Deduct credit only after AI succeeds (no charge on AI failure) ────────
         await deductUserCredits(dbUser.id, 1, "Extension Search Scanner");
 
+        const scanId = crypto.randomUUID();
+
         // ── Persist to DB (non-blocking, fire-and-forget) ───────────────────────
         try {
-            // Issue #3: reuse already-resolved userEmail, no second resolveUserEmail() call
-            if (userEmail) {
-                const user = await getUserByEmail(userEmail);
-                if (user) {
-                    let targetChannelId = channelId;
-                    if (!targetChannelId) {
-                        const { getChannelsByUserId } = await import("@/db/queries");
-                        const userChannels = await getChannelsByUserId(user.id);
-                        if (userChannels.length > 0) {
-                            targetChannelId = userChannels[0].id;
-                        }
-                    }
-
-                    if (targetChannelId) {
-                        await db.insert(scans).values({
-                            userId: user.id,
-                            channelId: targetChannelId,
-                            keyword,
-                            competitors: [],       // comment mining has no competitor URLs
-                            rawData: {
-                                source: "comment-mine",
-                                videoTitle,
-                                commentCount: comments.length,
-                                commentInsights: object.commentInsights,
-                            },
-                            result: {
-                                gaps: object.gaps,
-                                overallOpportunity: object.overallOpportunity,
-                            },
-                            analytics: null,       // no channel analytics for comment mining
-                        });
-                        logger.info(`[GapScanner] Saved ${object.gaps.length} gaps for ${userEmail} — "${keyword}" on channel ${targetChannelId}`);
-                    }
+            let targetChannelId = channelId;
+            if (!targetChannelId) {
+                const userChannels = await getChannelsByUserId(dbUser.id);
+                if (userChannels.length > 0) {
+                    targetChannelId = userChannels[0].id;
                 }
+            }
+
+            if (targetChannelId) {
+                await db.insert(scans).values({
+                    id: scanId,
+                    userId: dbUser.id,
+                    channelId: targetChannelId,
+                    keyword,
+                    competitors: [],       // comment mining has no competitor URLs
+                    rawData: {
+                        source: "comment-mine",
+                        collectedAt: new Date().toISOString(),
+                        videoTitle,
+                        commentCount: comments.length,
+                        commentInsights: object.commentInsights,
+                    },
+                    result: {
+                        gaps: object.gaps,
+                        overallOpportunity: object.overallOpportunity,
+                    },
+                    analytics: null,       // no channel analytics for comment mining
+                });
+                logger.info(`[GapScanner] Saved ${object.gaps.length} gaps for ${userEmail} — "${keyword}" on channel ${targetChannelId}`);
             }
         } catch (dbErr) {
             // Non-blocking — user still sees results even if DB save fails
@@ -302,7 +320,7 @@ For commentInsights:
         }
 
         return NextResponse.json(
-            { ...object, success: true, keyword },
+            { ...object, success: true, scanId, keyword },
             { headers: corsHeaders }
         );
 

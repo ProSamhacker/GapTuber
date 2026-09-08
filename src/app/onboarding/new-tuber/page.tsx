@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { completeNewTuberOnboarding } from "../actions";
 import {
-    Loader2, CheckCircle2, Wand2, Youtube, Sparkles, Hash,
+    CheckCircle2, Wand2, Youtube, Sparkles, Hash,
     TrendingUp, BarChart3, Target, Zap, Users, Globe,
     ArrowRight, Star, Trophy, Flame, Shield, Eye, ChevronDown
 } from "lucide-react";
@@ -419,20 +419,23 @@ export default function NewTuberPage() {
                                 </div>
                                 <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
                                     <div className="text-xl font-black text-white">${blueprint.revenueEstimate.low}-${blueprint.revenueEstimate.high}</div>
-                                    <div className="text-xs text-slate-500 mt-1">Est. Year 1 Revenue</div>
+                                    <div className="text-xs text-slate-500 mt-1">Illustrative ad scenario</div>
                                 </div>
                             </div>
 
                             {/* Estimated Views */}
                             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
                                 <div className="text-xs font-bold text-emerald-300 mb-2 flex items-center gap-2">
-                                    <BarChart3 className="w-3 h-3" /> Estimated First Year Views
+                                    <BarChart3 className="w-3 h-3" /> Illustrative First-Year View Scenarios
                                 </div>
                                 <div className="flex items-center gap-4 text-sm">
                                     <span className="text-slate-400">Conservative: <strong className="text-white">{blueprint.estimatedFirstYearViews.low.toLocaleString()}</strong></span>
-                                    <span className="text-emerald-300">Expected: <strong className="text-white">{blueprint.estimatedFirstYearViews.mid.toLocaleString()}</strong></span>
+                                    <span className="text-emerald-300">Mid scenario: <strong className="text-white">{blueprint.estimatedFirstYearViews.mid.toLocaleString()}</strong></span>
                                     <span className="text-slate-400">Optimistic: <strong className="text-white">{blueprint.estimatedFirstYearViews.high.toLocaleString()}</strong></span>
                                 </div>
+                                <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+                                    These are planning scenarios from public market samples—not forecasts. Actual views and revenue depend on impressions, CTR, retention, geography, monetization eligibility, and RPM, which GapTuber cannot observe here.
+                                </p>
                             </div>
 
                             {/* Trending Keywords */}

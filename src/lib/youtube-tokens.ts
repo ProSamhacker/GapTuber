@@ -111,7 +111,7 @@ export async function getValidYouTubeToken(channelId: string): Promise<TokenResu
 
     await updateChannelYoutubeTokens(channelId, {
         accessToken: data.access_token,
-        refreshToken: channel.youtubeRefreshToken, // refresh tokens don't change on OAuth2 refresh
+        refreshToken: decryptedRefresh, // refresh tokens do not change; persist the plaintext through the encryption boundary
         expiresAt: newExpiry,
     });
 

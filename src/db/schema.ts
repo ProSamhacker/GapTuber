@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, index, integer } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, jsonb, index, integer, real, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
     id: uuid("id").defaultRandom().primaryKey(),
@@ -65,6 +65,7 @@ export const scans = pgTable("scans", {
 ]);
 
 export interface VideoIdeaDB {
+    id?: string;
     title: string;
     hook: string;
     format: string;
@@ -75,6 +76,13 @@ export interface VideoIdeaDB {
     description?: string;
     tags?: string[];
     signalSource?: string;
+    status?: string;
+    youtubeVideoId?: string | null;
+    outcomeMultipliers?: {
+        day1?: number;
+        day7?: number;
+        day30?: number;
+    } | null;
 }
 
 export type User = typeof users.$inferSelect;
@@ -91,10 +99,17 @@ export interface ScanResult {
 }
 
 export interface GapItem {
+    id?: string;
+    scanId?: string;
     title: string;
     gapScore: number;
+    confidence?: number;
     reasoning: string;
+    whyNow?: string;
+    quantitativeReasons?: { type: string; label: string; value: string; source?: string }[];
+    evidenceComments?: { commentId: string; text?: string; likes?: number }[];
     hook: string;
+    suggestedTitle?: string;
     psychologicalTrigger?: string;
     titleVariants?: string[];
     format: string;
@@ -115,6 +130,22 @@ export interface ScanAnalytics {
     uploadSchedule: { bestDay: string; bestHour: number; insight: string };
     revenueEstimate: { low: number; mid: number; high: number };
     suggestedTags: string[];
+    provenance?: {
+        source: "YouTube Data API v3" | "YouTube Data API v3 + extension-collected public page data";
+        generatedAt: string;
+        cacheMaxAgeMinutes: number;
+        scoringVersion: string;
+        dataConfidence: number;
+        sample: {
+            competitorsRequested: number;
+            competitorsResolved: number;
+            videos: number;
+            comments: number;
+            searchResults: number;
+        };
+        aiRole: string;
+        limitations: string[];
+    };
 }
 
 // ─── AuraBot Schema ──────────────────────────────────────────────────────────
@@ -219,14 +250,72 @@ export const ideaVault = pgTable("idea_vault", {
     script: text("script"),
     description: text("description"),
     tags: jsonb("tags").$type<string[]>(),
+
+    // ─── Frozen Recommendation Snapshot ───
+    opportunityScoreAtRecommendation: real("opportunity_score_at_recommendation"),
+    confidenceAtRecommendation: real("confidence_at_recommendation"),
+    recommendationSignals: jsonb("recommendation_signals").$type<Record<string, unknown>>(),
+    recommendedAt: timestamp("recommended_at"),
+    scoringVersion: text("scoring_version"),
+
+    // Linked YouTube Data (Outcome Tracking)
+    youtubeVideoId: text("youtube_video_id"), // Linked when creator publishes
+    publishedAt: timestamp("published_at"),
+    outcomeMultipliers: jsonb("outcome_multipliers").$type<{
+        day1?: number;
+        day7?: number;
+        day30?: number;
+    }>(),
     
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
     index("vault_channel_idx").on(table.channelId),
     index("vault_status_idx").on(table.status),
-    index("vault_source_idx").on(table.source)
+    index("vault_source_idx").on(table.source),
+    index("vault_yt_id_idx").on(table.youtubeVideoId)
 ]);
 
 export type IdeaVault = typeof ideaVault.$inferSelect;
 export type NewIdeaVault = typeof ideaVault.$inferInsert;
+
+// ─── Outcome Tracking & Analytics Schema ──────────────────────────────────────
+
+export const baselinePerformance = pgTable("baseline_performance", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+    vaultIdeaId: uuid("vault_idea_id").references(() => ideaVault.id, { onDelete: "cascade" }),
+    targetVideoId: text("target_video_id"),
+    computedAt: timestamp("computed_at").defaultNow().notNull(),
+
+    // Baseline metrics derived from up to 15 prior comparable videos
+    day1MedianViews: integer("day1_median_views"),
+    day7MedianViews: integer("day7_median_views"),
+    day30MedianViews: integer("day30_median_views"),
+
+    sampleSize: integer("sample_size").notNull(),
+    baselineVideoIds: jsonb("baseline_video_ids").$type<string[]>(), // The exact 15 videos used
+    confidence: text("confidence").$type<"high" | "low">().notNull() // low if < 5 videos
+}, (table) => [
+    index("baseline_channel_idx").on(table.channelId),
+    uniqueIndex("unique_baseline_vault_target").on(table.vaultIdeaId, table.targetVideoId)
+]);
+
+export const videoPerformanceSnapshots = pgTable("video_performance_snapshots", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    vaultIdeaId: uuid("vault_idea_id").notNull().references(() => ideaVault.id, { onDelete: "cascade" }),
+    youtubeVideoId: text("youtube_video_id").notNull(), // Denormalized for easier querying
+
+    snapshotType: text("snapshot_type").$type<"day1" | "day7" | "day30">().notNull(),
+    recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+    actualViews: integer("actual_views").notNull(),
+    baselineViewsAtTime: integer("baseline_views_at_time"), // Frozen snapshot of what baseline was
+    performanceMultiplier: real("performance_multiplier"), // actual / baseline
+}, (table) => [
+    index("snapshot_vault_idx").on(table.vaultIdeaId),
+    index("snapshot_yt_id_idx").on(table.youtubeVideoId),
+    uniqueIndex("unique_video_snapshot_idx").on(table.youtubeVideoId, table.snapshotType)
+]);
+
+export type BaselinePerformance = typeof baselinePerformance.$inferSelect;
+export type VideoPerformanceSnapshot = typeof videoPerformanceSnapshots.$inferSelect;

@@ -18,6 +18,7 @@ export const { handlers, auth: originalAuth, signIn, signOut } = NextAuth({
                         "email",
                         "profile",
                         "https://www.googleapis.com/auth/youtube.readonly",
+                        "https://www.googleapis.com/auth/yt-analytics.readonly",
                     ].join(" "),
                     access_type: "offline",
                     prompt: "consent",

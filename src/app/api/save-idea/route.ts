@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { ideaVault } from "@/db/schema";
+import { ideaVault, scans } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { getUserByEmail, getChannelsByUserId, updateChannelBlueprint } from "@/db/queries";
 import { getCorsHeaders } from "@/lib/cors";
 import { logger } from "@/lib/logger";
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
 
         const body = await req.json() as {
             channelId?: string;
-            ideas: VideoIdeaDB[];
+            ideas: (VideoIdeaDB & { scanId?: string; gapId?: string })[];
         };
 
         if (!body.ideas?.length) {
@@ -93,7 +94,9 @@ export async function POST(req: NextRequest) {
             : userChannels[0];
 
         // Insert into ideaVault
-        const inserts = body.ideas.map(idea => {
+        const inserts = [];
+
+        for (const idea of body.ideas) {
             let source = "manual";
             if (idea.signalSource) {
                 if (idea.signalSource.includes("watchtower")) source = "watchtower";
@@ -102,7 +105,40 @@ export async function POST(req: NextRequest) {
                 else if (idea.signalSource.includes("gapscan")) source = "gapscan";
             }
             
-            return {
+            let frozenData: any = {};
+
+            if (idea.scanId && idea.gapId) {
+                // Securely fetch from DB
+                const scanRecord = await db.query.scans.findFirst({
+                    where: and(
+                        eq(scans.id, idea.scanId),
+                        eq(scans.userId, user.id) // Ensure scan belongs to user
+                    )
+                });
+
+                if (scanRecord && scanRecord.result && (scanRecord.result as any).gaps) {
+                    const originalGap = (scanRecord.result as any).gaps.find((g: any) => g.id === idea.gapId);
+                    if (originalGap) {
+                        frozenData = {
+                            opportunityScoreAtRecommendation: originalGap.gapScore,
+                            confidenceAtRecommendation: originalGap.confidence,
+                            recommendationSignals: {
+                                quantitativeReasons: originalGap.quantitativeReasons,
+                                overallOpportunity: (scanRecord.result as any).overallOpportunity,
+                                commentInsights: (scanRecord.rawData as any)?.commentInsights
+                            },
+                            recommendedAt: new Date(),
+                            scoringVersion: "v1.3" // Snapshot version
+                        };
+                    } else {
+                        logger.warn(`Gap ID ${idea.gapId} not found in scan ${idea.scanId}`);
+                    }
+                } else {
+                    logger.warn(`Scan ID ${idea.scanId} not found or no result for user ${user.id}`);
+                }
+            }
+
+            inserts.push({
                 channelId: targetChannel.id,
                 title: idea.title || "Untitled Idea",
                 hook: idea.hook,
@@ -115,8 +151,9 @@ export async function POST(req: NextRequest) {
                 script: idea.script,
                 description: idea.description,
                 tags: idea.tags || [],
-            };
-        });
+                ...frozenData
+            });
+        }
 
         await db.insert(ideaVault).values(inserts);
 

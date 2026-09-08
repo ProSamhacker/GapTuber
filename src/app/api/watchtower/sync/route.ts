@@ -34,7 +34,7 @@ async function handleSync(req: NextRequest) {
     try {
         // Fetch monitors to sync. If channelId is provided, sync only that channel's monitors.
         // Otherwise, sync all monitors in the system (limit to 50 per batch to avoid timeouts).
-        let query = db.select().from(competitorMonitors);
+        const query = db.select().from(competitorMonitors);
         let monitors = await query;
 
         if (channelId) {

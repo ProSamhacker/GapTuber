@@ -27,9 +27,14 @@ const MONETIZATION_POOL = [
     "YouTube Premium revenue", "newsletter subscriber CTA",
 ];
 
-function pickN<T>(arr: T[], n: number): T[] {
-    const shuffled = [...arr].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, n);
+function pickN<T>(arr: T[], n: number, seed: string): T[] {
+    let hash = 2166136261;
+    for (const char of seed) {
+        hash ^= char.charCodeAt(0);
+        hash = Math.imul(hash, 16777619);
+    }
+    const start = Math.abs(hash) % arr.length;
+    return Array.from({ length: Math.min(n, arr.length) }, (_, index) => arr[(start + index) % arr.length]);
 }
 
 /**
@@ -44,16 +49,17 @@ export function buildAnalysisPrompt(
   keyword: string,
   candidates: GapCandidate[],
   competitorTitles: string[] = [],
-  verbatimPainPoints: string[] = []
+  verbatimPainPoints: { id: string, text: string, likes: number }[] = [],
+  whyNowContext: string = ""
 ): string {
-  // Pick 3 different formats and 3 different hooks for this run — forces variety
-  const sessionFormats = pickN(FORMAT_POOL, 3);
-  const sessionHooks = pickN(HOOK_POOL, 4);
-  const sessionMonetization = pickN(MONETIZATION_POOL, 3);
+  // Stable selection makes identical inputs reproducible and easier to evaluate.
+  const sessionFormats = pickN(FORMAT_POOL, 3, `${keyword}:formats`);
+  const sessionHooks = pickN(HOOK_POOL, 4, `${keyword}:hooks`);
+  const sessionMonetization = pickN(MONETIZATION_POOL, 3, `${keyword}:monetization`);
 
-  // Pick a random specific number (NOT 7, NOT 14 to avoid template lock)
+  // Pick a stable specific example number (NOT 7, NOT 14 to avoid template lock)
   const specificNumbers = ["11", "21", "30", "48 hours", "3 weeks", "6 months", "$237", "91%", "2 years", "18 months", "$0", "63%"];
-  const exampleNumber = specificNumbers[Math.floor(Math.random() * specificNumbers.length)];
+  const exampleNumber = pickN(specificNumbers, 1, `${keyword}:number`)[0];
 
   const candidatesSummary = candidates
     .map(
@@ -67,8 +73,7 @@ export function buildAnalysisPrompt(
    Trend Momentum: ${c.scores.trendMomentum.toFixed(1)}/10 \u2014 ${c.trendInsight}
    Competition Difficulty: ${c.scores.competitionScore.toFixed(1)}/10 \u2014 ${c.competitionInsight}
    Top Audience Pain Keywords: ${c.topFrustrationKeywords.slice(0, 6).join(", ")}
-   Estimated Views Range: ${c.estimatedViews.low.toLocaleString()}\u2013${c.estimatedViews.high.toLocaleString()}
-   Best Upload Window: ${c.bestUploadDay} at ${c.bestUploadHour}:00 UTC`
+   Evidence Confidence: ${(c.scores.confidence * 100).toFixed(0)}% (sample coverage, not success probability)`
     )
     .join("\n\n");
 
@@ -77,10 +82,17 @@ export function buildAnalysisPrompt(
     : "";
 
   const painPointsBlock = verbatimPainPoints.length > 0
-    ? `\n\u2501\u2501\u2501 REAL AUDIENCE FRUSTRATIONS (High-liked comments \u2014 address these directly) \u2501\u2501\u2501\n${verbatimPainPoints.slice(0, 5).map((p, i) => `  ${i + 1}. "${p}"`).join("\n")}\n`
+    ? `\n\u2501\u2501\u2501 REAL AUDIENCE FRUSTRATIONS (High-liked comments \u2014 address these directly) \u2501\u2501\u2501\n${verbatimPainPoints.map(p => `  [ID: ${p.id}] [${p.likes} likes] "${p.text}"`).join("\n")}\n`
     : "";
 
-  return `You are an elite YouTube strategist who has grown 50+ channels past 100K subscribers. You think like a viewer first, an algorithm second.
+  const whyNowBlock = whyNowContext ? `\n\u2501\u2501\u2501 TIMING SIGNALS (Why Now context) \u2501\u2501\u2501\n${whyNowContext}\n` : "";
+
+  const currentYear = new Date().getUTCFullYear();
+  const evidenceRequirement = verbatimPainPoints.length > 0
+    ? "Select 2-3 IDs from REAL AUDIENCE FRUSTRATIONS. Never quote, paraphrase, or invent comment text in the JSON."
+    : "No comment evidence was supplied. Return an empty evidenceComments array and do not imply that viewers asked for anything.";
+
+  return `You are a YouTube content-strategy assistant. Treat the supplied measurements as the complete factual record. Never claim access to search volume, CTR, retention, demographics, revenue, or trends outside this record.
 
 \u2501\u2501\u2501 YOUR MISSION \u2501\u2501\u2501
 Keyword under analysis: "${keyword}"
@@ -88,7 +100,8 @@ Analyze the ${candidates.length} data-backed gap candidates below. Select and de
 
 \u2501\u2501\u2501 GAP CANDIDATE DATA \u2501\u2501\u2501
 ${candidatesSummary}
-${competitorBlock}${painPointsBlock}
+${competitorBlock}${painPointsBlock}${whyNowBlock}
+EVIDENCE RULE: ${evidenceRequirement}
 \u2501\u2501\u2501━━━ MANDATORY CREATIVE RULES ━━━
 
 RULE 0 — KEYWORD ANCHORING (MOST IMPORTANT RULE — CHECKED SERVER-SIDE):
@@ -99,7 +112,7 @@ RULE 0 — KEYWORD ANCHORING (MOST IMPORTANT RULE — CHECKED SERVER-SIDE):
   ❌ INVALID: "The Brutal Truth About AI" — only 1 keyword word, "web development" missing
   ❌ INVALID: "Stop Doing AI This Way" — missing "web development" or "AI development"
   ✅ VALID: "I Tested AI Tools in Web Development — Shocking Results"
-  ✅ VALID: "The Brutal Truth About AI in Web Development 2026"
+  ✅ VALID: "The Brutal Truth About AI in Web Development ${currentYear}"
   ✅ VALID: "Stop Using AI for Web Dev Until You Watch This"
   TITLE LENGTH: MUST be between 38 and 70 characters. Shorter = automatic fail.
 
@@ -140,7 +153,7 @@ RULE 6 — MONETIZATION ROTATION:
 \u2705 STRONG: "I Quit ${keyword} For ${exampleNumber}. Nobody Expected This"
 \u2705 STRONG: "The Real Reason Your ${keyword} Results Are Plateauing"  
 \u2705 STRONG: "Unpopular Opinion: Stop Doing ${keyword} This Way"
-\u274c WEAK: "7 ${keyword} Tools You Need In 2026"
+\u274c WEAK: "7 ${keyword} Tools You Need In ${currentYear}"
 \u274c WEAK: "${keyword} for Beginners (Complete Guide)"
 \u274c WEAK: "I Tested ${keyword} for 14 Days" (overused template \u2014 banned this session)
 
@@ -148,6 +161,8 @@ RULE 6 — MONETIZATION ROTATION:
 - title: The primary video title (follow all 6 rules above)
 - gapScore: Use the composite score from candidate data (do not artificially inflate above 9.5)
 - reasoning: 1 punchy sentence explaining WHY this specific gap exists in this niche right now. Cite the most relevant audience pain point or competitor weakness \u2014 NOT generic velocity/trend metrics.
+- whyNow: 1 compelling sentence explaining why the creator should make this video NOW. You MUST ONLY mention signals present in the supplied TIMING SIGNALS context. Do not invent trends.
+- evidenceComments: Exactly 2-3 real comment quotes that prove this gap exists. Select 2-3 comments verbatim from the supplied REAL AUDIENCE FRUSTRATIONS list. Never rewrite, paraphrase, or invent comments. Output an array of objects containing ONLY the commentId.
 - hook: 2\u20133 sentence video OPENING that would stop a viewer from scrolling. Raw, personal, pattern-interrupting \u2014 not corporate.
 - psychologicalTrigger: EXACTLY one of: curiosity | fear_of_missing_out | authority | social_proof | urgency
 - titleVariants: 3 alternatives \u2014 each using a DIFFERENT format from Rule #1, different hook word. None should sound similar to the main title.
@@ -165,6 +180,10 @@ Respond with ONLY valid JSON matching this exact schema. No markdown fences, no 
       "title": "string",
       "gapScore": number,
       "reasoning": "string",
+      "whyNow": "string",
+      "evidenceComments": [
+        { "commentId": "string" }
+      ],
       "hook": "string",
       "psychologicalTrigger": "string",
       "titleVariants": ["string", "string", "string"],

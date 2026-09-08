@@ -376,6 +376,7 @@ function extractChannelKeywords(videos: VideoInput[], topN = 20): string[] {
 
 export interface KeywordMarketContext {
     keyword: string;
+    collectedAt: string;
     avgViews: number;
     avgCompetitorSubscribers: number;
     recentUploadRate: number;
@@ -392,6 +393,7 @@ export function buildChannelAnalysisPrompt(
     topVideos: VideoInput[],
     marketContextMap?: Map<string, KeywordMarketContext>
 ): string {
+    const currentYear = new Date().getUTCFullYear();
     const topTitles = topVideos
         .slice(0, 25)
         .map((v, i) => {
@@ -427,26 +429,25 @@ export function buildChannelAnalysisPrompt(
         for (const [kw, ctx] of marketContextMap.entries()) {
             const competitionLevel = ctx.avgCompetitorSubscribers > 1_000_000 ? "High"
                 : ctx.avgCompetitorSubscribers > 100_000 ? "Medium" : "Low";
-            const trendLevel = ctx.recentUploadRate >= 60 ? "Rising 🔥"
-                : ctx.recentUploadRate >= 30 ? "Stable" : "Fading";
             marketLines.push(
                 `  "${kw}":\n` +
+                `    Collected: ${ctx.collectedAt}\n` +
                 `    Avg Top-10 Views: ${ctx.avgViews.toLocaleString()} | Avg Competitor Subs: ${(ctx.avgCompetitorSubscribers / 1000000).toFixed(1)}M | Competition: ${competitionLevel}\n` +
-                `    Trend: ${trendLevel} (${ctx.recentUploadRate}% uploaded in last 90 days) | Weak Competitors: ${ctx.lowCompetitionCount}/10\n` +
+                `    Recent-result share: ${ctx.recentUploadRate}% of this relevance sample was uploaded in the last 90 days | Smaller channels: ${ctx.lowCompetitionCount}/${ctx.resultCount}\n` +
                 `    Top Ranking Titles: ${ctx.topTitles.slice(0, 3).map(t => `"${t}"`).join(" | ")}`
             );
         }
         marketBlock = `
-REAL YOUTUBE MARKET DATA (fetched live from YouTube API — use this to calibrate competition and trend scores):
+CURRENT PUBLIC YOUTUBE SAMPLE (fetched from the YouTube Data API — use only for relative competition and recent-upload signals):
 ${marketLines.join("\n\n")}
 `;
     }
 
-    return `You are a senior YouTube growth strategist. Your job is to analyze THIS SPECIFIC CHANNEL's data and find genuine gaps, NOT apply generic tech-niche templates.
+    return `You are a YouTube content-strategy assistant. Treat the supplied channel titles and public measurements as the complete factual record. Do not claim access to search volume, impressions, CTR, retention, demographics, private analytics, revenue, or broader trends not present below.
 
 CHANNEL: ${channelName} (${channelUrl})
 
-COMPUTED CHANNEL DATA SIGNALS (ground truth from scraped data):
+COMPUTED CHANNEL DATA SIGNALS (derived from the supplied extension sample):
 - View Velocity: ${metrics.viewVelocity}/100 (${metrics.recentTrend})
 - Upload Consistency: ${metrics.uploadConsistency}/100 — ${metrics.postsPerWeek} videos/week
 - Hit Rate: ${metrics.hitRate}/100 (top videos vs channel average)
@@ -470,7 +471,9 @@ CRITICAL INSTRUCTIONS:
 - If titles contain words like "free", "no credit", "local", "hack", "budget", those ARE the niche signals — analyze accordingly.
 - Do NOT suggest topics from generic "AI developer" or "enterprise tech" categories unless they GENUINELY appear in the titles above.
 - Keyword gaps must be ADJACENT to what already performs well — close enough that the existing audience cares, different enough to be untapped.
-- Competitors must be channels with a SIMILAR audience (same price-sensitivity, same skill level, same type of content).
+- Competitor suggestions are optional hypotheses. Only provide an @handle when you are highly confident it is real; the server will verify every handle against YouTube and discard unresolved suggestions.
+- Never state that a topic is trending, viral, underserved, low competition, or high demand unless the supplied public sample directly supports that description.
+- Numeric opportunity fields are placeholders only. Output 0; the server calculates them from current public samples when available.
 
 YOUR TASK — provide ONLY qualitative analysis that requires your knowledge:
 Explain this like I am a tired YouTuber, not a marketing executive. You are strictly forbidden from using words like: leverage, unlock, dive deep, landscape, synergy, dynamic, or comprehensive.
@@ -479,20 +482,20 @@ Explain this like I am a tired YouTuber, not a marketing executive. You are stri
 2. SUMMARY: 2-3 sentences on current positioning, the audience's primary pain point, and the single biggest growth opportunity
 3. KEYWORDS: 3 keyword opportunities this channel is NOT covering well
    - MUST be phrased EXACTLY as a viewer would type them into YouTube Search (not category labels)
-   - MUST include high-intent search modifiers where appropriate: "how to", "tutorial", "for beginners", "vs", "2025", "2026", "free", "without", "step by step", "on [hardware]"
-   - BAD example: "local AI development" → GOOD example: "how to run AI locally for free 2026"
+   - MAY include high-intent search modifiers when the title evidence supports them: "how to", "tutorial", "for beginners", "vs", "${currentYear}", "free", "without", "step by step", "on [hardware]"
+   - BAD example: "local AI development" → BETTER when supported: "how to run AI locally for free ${currentYear}"
    - Must be adjacent to content already working
    - competition: "Low" = <5 major channels dominate, "Medium" = 5-15, "High" = >15
    - reasoning: cite specific evidence from the title list above (quote actual titles)
    - hook: one strong opening line a creator can use verbatim
    - DO NOT include numeric scores
-4. COMPETITORS: 3 REAL YouTube channels whose audience matches this channel's actual audience
-   - Use actual @handles that exist — if unsure, omit rather than invent
+4. COMPETITORS: up to 3 possible YouTube channels whose audience may match
+   - If unsure of the exact @handle, omit it. Never fabricate a handle.
 5. CONTENT GAPS: 2 topic angles that fit this channel's audience style but aren't well covered
    - Must be grounded in the actual viewing patterns and title language found above
    - Provide 'channelPresence' (0-100): how much the channel already covers this (lower means bigger gap)
-   - Provide 'trendingAcceleration' (0-100): how fast this topic is growing in the broader YouTube landscape
-   - Provide 'opportunityIndex' (0-100): overall score of the gap potential (higher is better)
+   - Set 'trendingAcceleration' to 0; the server replaces it only when a current public sample is available
+   - Set 'opportunityIndex' to 0; the server replaces it only when a current public sample is available
 6. TOP PATTERNS: 3 content patterns that explain why the top videos perform well (from the data)
 7. GROWTH ACTIONS: 3 specific, actionable steps grounded in this channel's style and audience
 

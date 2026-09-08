@@ -1,9 +1,8 @@
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db } from "./index";
-import { scans, users, channels, botChats, botMessages, creditHistory, type NewScan, type NewChannel, type NewBotMessage, type VideoIdeaDB } from "./schema";
+import { scans, users, channels, botChats, botMessages, creditHistory, type NewScan, type NewChannel, type NewBotMessage } from "./schema";
 
 import { encryptToken } from "@/lib/token-crypto";
-import { logger } from "@/lib/logger";
 
 export async function upsertUser(email: string, name?: string, image?: string) {
     const existing = await db
@@ -126,16 +125,25 @@ export async function updateChannelYoutubeTokens(
 ) {
     // Encrypt sensitive OAuth tokens before persisting
     const encryptedAccess = encryptToken(tokens.accessToken);
-    const encryptedRefresh = tokens.refreshToken ? encryptToken(tokens.refreshToken) : null;
+    const updates: Partial<typeof channels.$inferInsert> = {
+        youtubeAccessToken: encryptedAccess,
+    };
+
+    // Omitted optional fields must remain unchanged. Previously, refreshing only
+    // the access token accidentally erased the refresh token and channel ID.
+    if (tokens.refreshToken !== undefined) {
+        updates.youtubeRefreshToken = tokens.refreshToken ? encryptToken(tokens.refreshToken) : null;
+    }
+    if (tokens.expiresAt !== undefined) {
+        updates.youtubeTokenExpiresAt = tokens.expiresAt;
+    }
+    if (tokens.youtubeChannelId !== undefined) {
+        updates.youtubeChannelId = tokens.youtubeChannelId;
+    }
 
     return db
         .update(channels)
-        .set({
-            youtubeAccessToken: encryptedAccess,
-            youtubeRefreshToken: encryptedRefresh,
-            youtubeTokenExpiresAt: tokens.expiresAt ?? null,
-            youtubeChannelId: tokens.youtubeChannelId ?? null,
-        })
+        .set(updates)
         .where(eq(channels.id, channelId));
 }
 

@@ -47,6 +47,7 @@ export default async function IdeaVaultPage({
     });
 
     const mappedVaultIdeas = vaultIdeasRaw.map(iv => ({
+        id: iv.id,
         title: iv.title,
         hook: iv.hook || "",
         format: iv.format || "",
@@ -54,9 +55,12 @@ export default async function IdeaVaultPage({
         whyItWorks: iv.whyItWorks || "",
         script: iv.script || "",
         estimatedViewPotential: iv.estimatedViewPotential as any,
-        signalSource: iv.referenceId || iv.source,  // referenceId holds AI signal for system ideas
+        signalSource: iv.referenceId || iv.source,
         description: iv.description || "",
         tags: iv.tags || [],
+        status: iv.status,
+        youtubeVideoId: iv.youtubeVideoId,
+        outcomeMultipliers: iv.outcomeMultipliers
     }));
 
     // Map ideaVault statuses → component statuses (ready/filming/done)

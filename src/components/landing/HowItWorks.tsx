@@ -14,7 +14,7 @@ const STEPS = [
     {
         num: "03",
         title: "Discover What Viewers Actually Want",
-        desc: "GapTuber reads through thousands of YouTube comments to find complaints, questions, and requests that viewers keep repeating.",
+        desc: "GapTuber reviews a bounded sample of public YouTube comments to find repeated complaints, questions, and requests, while preserving the source evidence.",
         details: ["Find recurring viewer complaints", "Spot missing topics people ask for", "Understand your audience's biggest frustrations"],
     },
     {

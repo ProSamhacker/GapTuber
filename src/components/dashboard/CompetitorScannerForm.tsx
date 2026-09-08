@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Loader2, Plus, Target, Trash2, Zap } from "lucide-react";
 import { GapCard, AnalyticsPanel } from "./ScanComponents";
 import { useRouter } from "next/navigation";
+import type { GapItem, ScanAnalytics } from "@/db/schema";
+import Image from "next/image";
 
 interface RecommendedCompetitor {
     channelId: string;
@@ -16,12 +18,21 @@ interface RecommendedCompetitor {
     description: string;
 }
 
+interface AnalysisResult {
+    keyword: string;
+    scanId?: string;
+    gaps: GapItem[];
+    overallOpportunity?: string;
+    recommendedNiche?: string;
+    analytics?: ScanAnalytics;
+}
+
 export function CompetitorScannerForm({ channelId, topic }: { channelId: string; topic: string }) {
     const [keyword, setKeyword] = useState("");
     const [competitors, setCompetitors] = useState<string[]>([""]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [result, setResult] = useState<any | null>(null);
+    const [result, setResult] = useState<AnalysisResult | null>(null);
     
     const [recommendedCompetitors, setRecommendedCompetitors] = useState<RecommendedCompetitor[]>([]);
     const [isFetchingRecommendations, setIsFetchingRecommendations] = useState(false);
@@ -117,12 +128,12 @@ export function CompetitorScannerForm({ channelId, topic }: { channelId: string;
                 throw new Error(data.error || "Failed to run analysis.");
             }
 
-            setResult(data);
+            setResult(data as AnalysisResult);
             window.dispatchEvent(new CustomEvent("credit-update", { detail: { deduct: 1 } }));
             router.refresh(); // Refresh to update sidebar and history if they exist elsewhere
             
-        } catch (err: any) {
-            setError(err.message || "An unexpected error occurred.");
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "An unexpected error occurred.");
         } finally {
             setIsLoading(false);
         }
@@ -137,7 +148,7 @@ export function CompetitorScannerForm({ channelId, topic }: { channelId: string;
                     </div>
                     <div>
                         <h2 className="text-xl font-bold text-white tracking-tight">Competitor Gap Scanner</h2>
-                        <p className="text-zinc-500 text-sm">Analyze competitors' recent videos to find hidden content gaps and opportunities.</p>
+                        <p className="text-zinc-500 text-sm">Compare recent public YouTube data, then turn measured gaps into testable video ideas.</p>
                     </div>
                 </div>
 
@@ -151,10 +162,12 @@ export function CompetitorScannerForm({ channelId, topic }: { channelId: string;
                             value={keyword}
                             onChange={(e) => setKeyword(e.target.value)}
                             placeholder="e.g. Next.js 14 Tutorial"
+                            aria-describedby="keyword-help"
                             className="w-full bg-[#0c0c0e] border border-[#1e1e22] rounded-lg px-4 py-3 text-white placeholder-zinc-700 focus:outline-none focus:border-emerald-500/50 transition-colors"
                             required
                             disabled={isLoading}
                         />
+                        <p id="keyword-help" className="mt-2 text-xs leading-relaxed text-zinc-600">Use a viewer topic, not a proposed title. The scan samples YouTube search results; it does not claim private search-volume data.</p>
                     </div>
 
                     <div>
@@ -184,6 +197,7 @@ export function CompetitorScannerForm({ channelId, topic }: { channelId: string;
                                         placeholder="e.g. @Fireship or youtube.com/@Fireship"
                                         className="flex-1 bg-[#0c0c0e] border border-[#1e1e22] rounded-lg px-4 py-3 text-white placeholder-zinc-700 focus:outline-none focus:border-emerald-500/50 transition-colors"
                                         disabled={isLoading}
+                                        aria-label={`Remove competitor ${index + 1}`}
                                     />
                                     {competitors.length > 1 && (
                                         <button
@@ -226,7 +240,13 @@ export function CompetitorScannerForm({ channelId, topic }: { channelId: string;
                                     {recommendedCompetitors.map((comp) => (
                                         <div key={comp.channelId} className="p-3 bg-[#0c0c0e] border border-[#1e1e22] rounded-lg hover:border-emerald-500/30 transition-colors group">
                                             <div className="flex items-start gap-3">
-                                                <img src={comp.thumbnail} alt={comp.name} className="w-10 h-10 rounded-full border border-[#2a2a30] bg-[#111113] object-cover" />
+                                                {comp.thumbnail ? (
+                                                    <Image src={comp.thumbnail} alt={comp.name} width={40} height={40} className="w-10 h-10 rounded-full border border-[#2a2a30] bg-[#111113] object-cover" />
+                                                ) : (
+                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#2a2a30] bg-[#111113] text-xs font-bold text-zinc-500" aria-hidden="true">
+                                                        {comp.name.slice(0, 1).toUpperCase()}
+                                                    </div>
+                                                )}
                                                 <div className="flex-1 min-w-0">
                                                     <h4 className="text-sm font-bold text-zinc-200 truncate">{comp.name}</h4>
                                                     <p className="text-xs text-zinc-500 truncate">{comp.handle.startsWith("@") ? comp.handle : `@${comp.handle}`}</p>
@@ -257,10 +277,14 @@ export function CompetitorScannerForm({ channelId, topic }: { channelId: string;
                     )}
 
                     {error && (
-                        <div className="p-4 bg-red-950/30 border border-red-900/50 rounded-lg text-red-400 text-sm">
+                        <div role="alert" aria-live="polite" className="p-4 bg-red-950/30 border border-red-900/50 rounded-lg text-red-400 text-sm">
                             {error}
                         </div>
                     )}
+
+                    <div className="rounded-lg border border-sky-500/15 bg-sky-500/[0.03] p-3 text-xs leading-relaxed text-zinc-500">
+                        Scores come from public YouTube video, channel, search-result, and comment samples. AI writes the creative draft; it cannot change the measured score or invent evidence links.
+                    </div>
 
                     <button
                         type="submit"
@@ -275,7 +299,7 @@ export function CompetitorScannerForm({ channelId, topic }: { channelId: string;
                         ) : (
                             <>
                                 <Target className="w-5 h-5" />
-                                RUN AI GAP SCAN
+                                RUN GROUNDED GAP SCAN
                                 <span className="ml-2 flex items-center gap-1 text-xs font-mono bg-emerald-700/50 px-2 py-0.5 rounded-full border border-emerald-500/30">
                                     <Zap className="w-3 h-3 fill-current text-amber-400" /> -1
                                 </span>
@@ -303,8 +327,8 @@ export function CompetitorScannerForm({ channelId, topic }: { channelId: string;
 
                     {result.gaps && result.gaps.length > 0 && (
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-                            {result.gaps.map((gap: any, i: number) => (
-                                <GapCard key={i} gap={gap} rank={i + 1} />
+                            {result.gaps.map((gap, i) => (
+                                <GapCard key={gap.id ?? i} gap={{...gap, scanId: result.scanId}} rank={i + 1} channelId={channelId} analytics={result.analytics} />
                             ))}
                         </div>
                     )}

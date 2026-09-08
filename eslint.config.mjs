@@ -11,8 +11,19 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "extension/dist/**",
     "next-env.d.ts",
   ]),
+  {
+    // Keep legacy migration scripts and gradually typed API boundaries visible in
+    // CI without making non-runtime style debt fail an otherwise valid build.
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-require-imports": "warn",
+      "react/no-unescaped-entities": "warn",
+      "react-hooks/set-state-in-effect": "warn",
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -61,16 +61,44 @@ async function ScanHistorySection({ channelId, limit, savedIdeas = [] }: { chann
     const scans = await getCachedScans(channelId, limit);
     const hasMore = scans.length === limit;
 
+    // ── Compute cross-scan opportunity intelligence ──
+    const allGaps = scans.flatMap(s => (s.result as { gaps: GapItem[] } | null)?.gaps ?? []);
+    const strong       = allGaps.filter(g => Math.round(g.gapScore * 10) >= 75).length;
+    const good         = allGaps.filter(g => { const s = Math.round(g.gapScore * 10); return s >= 55 && s < 75; }).length;
+    const experimental = allGaps.filter(g => Math.round(g.gapScore * 10) < 55).length;
+    const topScore     = allGaps.reduce((max, g) => Math.max(max, Math.round(g.gapScore * 10)), 0);
+    const topNiche     = (scans[0]?.result as { recommendedNiche?: string } | null)?.recommendedNiche;
+
     return (
         <div className="space-y-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e1e22] pb-3">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                    Scan History
-                </h2>
-                <div className="text-[10px] font-mono text-zinc-500 px-2 py-1 bg-[#1e1e22] rounded self-start sm:self-auto">
-                    via GapTuber Extension
+            {/* ── Section Header ── */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e1e22] pb-4">
+                <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        Your Next Best Videos
+                    </h2>
+                    <p className="text-[11px] text-zinc-600 mt-0.5">Based on gap intelligence from YouTube data · via GapTuber Extension</p>
                 </div>
             </div>
+
+            {/* ── Intelligence Summary Banner ── */}
+            {allGaps.length > 0 && (
+                <div className="bg-[#0c0c0e] border border-[#1e1e22] rounded-2xl p-5">
+                    <div className="flex flex-col gap-1.5">
+                        <p className="text-xl font-bold text-white tracking-tight">
+                            {allGaps.length} opportunities found
+                        </p>
+                        <p className="text-[13px] font-medium text-zinc-400">
+                            {strong} Strong <span className="text-zinc-600 mx-1">·</span> {good} Moderate <span className="text-zinc-600 mx-1">·</span> {experimental} Experimental
+                        </p>
+                        {topScore > 0 && (
+                            <p className="text-[13px] font-medium text-zinc-400">
+                                Top opportunity: <span className="text-white font-bold">{topScore}/100</span>
+                            </p>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {scans.length === 0 ? (
                 <div className="text-center py-20 bg-[#111113] border border-[#1e1e22] rounded-xl flex flex-col items-center">
@@ -93,6 +121,10 @@ async function ScanHistorySection({ channelId, limit, savedIdeas = [] }: { chann
                         const analytics = scan.analytics as ScanAnalytics | null;
                         if (!result?.gaps?.length) return null;
 
+                        // Per-scan tier counts
+                        const scanStrong = result.gaps.filter(g => Math.round(g.gapScore * 10) >= 75).length;
+                        const scanGood   = result.gaps.filter(g => { const s = Math.round(g.gapScore * 10); return s >= 55 && s < 75; }).length;
+
                         return (
                             <div key={scan.id}>
                                 <div className="mb-6 flex items-start justify-between gap-4">
@@ -106,11 +138,22 @@ async function ScanHistorySection({ channelId, limit, savedIdeas = [] }: { chann
                                                     niche: {result.recommendedNiche}
                                                 </span>
                                             )}
+                                            {/* Per-scan mini summary */}
+                                            {scanStrong > 0 && (
+                                                <span className="text-[10px] font-mono text-emerald-400 border border-emerald-500/20 bg-emerald-500/8 rounded px-2 py-0.5">
+                                                    🔥 {scanStrong} Strong
+                                                </span>
+                                            )}
+                                            {scanGood > 0 && (
+                                                <span className="text-[10px] font-mono text-amber-400 border border-amber-500/20 bg-amber-500/8 rounded px-2 py-0.5">
+                                                    🟡 {scanGood} Good
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-3 text-xs font-mono text-zinc-600">
                                             <span>{new Date(scan.createdAt).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }).toUpperCase()}</span>
                                             <span>|</span>
-                                            <span>FOUND {result.gaps.length} GAPS</span>
+                                            <span>FOUND {result.gaps.length} OPPORTUNITIES</span>
                                         </div>
                                     </div>
                                     <DeleteScanButton scanId={scan.id} />
@@ -120,7 +163,14 @@ async function ScanHistorySection({ channelId, limit, savedIdeas = [] }: { chann
 
                                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
                                     {result.gaps.map((gap, i) => (
-                                        <GapCard key={i} gap={gap} rank={i + 1} channelId={channelId} isAlreadySaved={savedIdeas.some(s => s.title === gap.title)} />
+                                        <GapCard
+                                            key={i}
+                                            gap={{...gap, scanId: scan.id}}
+                                            rank={i + 1}
+                                            channelId={channelId}
+                                            isAlreadySaved={savedIdeas.some(s => s.title === gap.title)}
+                                            analytics={analytics}
+                                        />
                                     ))}
                                 </div>
                             </div>
@@ -232,6 +282,10 @@ export default async function DashboardPage({
 
     const systemIdeas = allVaultIdeasRaw.filter(i => i.source === "system");
     const mappedSystemIdeas = systemIdeas.map(iv => ({
+        id: iv.id,
+        status: iv.status,
+        youtubeVideoId: iv.youtubeVideoId,
+        outcomeMultipliers: iv.outcomeMultipliers,
         title: iv.title,
         hook: iv.hook || "",
         format: iv.format || "",
@@ -257,6 +311,10 @@ export default async function DashboardPage({
 
     const manualIdeas = allVaultIdeasRaw.filter(i => i.source !== "system");
     const mappedManualIdeas = manualIdeas.map(iv => ({
+        id: iv.id,
+        status: iv.status,
+        youtubeVideoId: iv.youtubeVideoId,
+        outcomeMultipliers: iv.outcomeMultipliers,
         title: iv.title,
         hook: iv.hook || "",
         format: iv.format || "",
@@ -343,14 +401,20 @@ export default async function DashboardPage({
                             {activeChannel.youtubeAccessToken ? "Session Expired" : "Connect YouTube"}
                         </Link>
                     )}
-                    <div className="flex items-center justify-between md:justify-center gap-4 border border-[#1e1e22]/50 bg-[#111113]/60 backdrop-blur-md rounded-lg px-6 py-2.5 flex-1 md:flex-none">
-                        <div className="text-center pr-4 md:pr-6 border-r border-[#1e1e22]">
+                    <div className="flex items-center justify-between md:justify-center gap-3 border border-[#1e1e22]/50 bg-[#111113]/60 backdrop-blur-md rounded-lg px-4 py-2.5 flex-1 md:flex-none">
+                        <div className="text-center pr-3 md:pr-4 border-r border-[#1e1e22]">
                             <div className="text-xl font-bold text-white leading-none mb-1">{scans.length}</div>
                             <div className="text-[10px] font-mono uppercase text-zinc-600 tracking-widest">Scans</div>
                         </div>
+                        <div className="text-center pr-3 md:pr-4 border-r border-[#1e1e22]">
+                            <div className="text-xl font-bold text-emerald-400 leading-none mb-1">
+                                {scans.reduce((n, s) => n + ((s.result as { gaps?: { gapScore: number }[] } | null)?.gaps?.filter(g => Math.round(g.gapScore * 10) >= 75).length ?? 0), 0)}
+                            </div>
+                            <div className="text-[10px] font-mono uppercase text-zinc-600 tracking-widest">🔥 Strong</div>
+                        </div>
                         <div className="text-center">
                             <div className="text-xl font-bold text-white leading-none mb-1">{totalGaps}</div>
-                            <div className="text-[10px] font-mono uppercase text-zinc-600 tracking-widest">Gaps</div>
+                            <div className="text-[10px] font-mono uppercase text-zinc-600 tracking-widest">Total</div>
                         </div>
                     </div>
                 </div>

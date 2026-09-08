@@ -18,7 +18,7 @@ export default function ScriptModal({ idea, onClose }: { idea: VideoIdea, onClos
     useEffect(() => {
         const prompt = `Write a detailed YouTube script for a ${idea.format} video titled "${idea.title}". The hook must be: "${idea.hook}". Target duration: ${idea.duration}. Include sections for Intro, Main Content, and Outro/Call to action.`;
         generateScript(prompt);
-    }, [idea]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [idea]);
 
     const generateScript = async (prompt: string) => {
         setIsLoading(true);

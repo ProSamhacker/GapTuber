@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
         if (!userEmail) {
             return NextResponse.json(
-                { success: false, error: "Unauthorized — reload extension after signing in at localhost:3000" },
+                { success: false, error: "Unauthorized — reload the extension after signing in to GapTuber." },
                 { status: 401, headers: cors }
             );
         }

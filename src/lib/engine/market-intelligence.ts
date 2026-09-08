@@ -5,15 +5,34 @@
  * All functions use the existing YouTube Data API v3 key pool.
  */
 
+import { cacheData } from "@/lib/cache";
+
 const YT_BASE = "https://www.googleapis.com/youtube/v3";
+
+interface YouTubeSearchItem {
+    id?: { videoId?: string };
+    snippet?: { channelId?: string };
+}
+
+interface YouTubeVideoItem {
+    statistics?: { viewCount?: string };
+    snippet?: { publishedAt?: string; channelId?: string; title?: string };
+}
+
+interface YouTubeChannelItem {
+    id: string;
+    statistics?: { subscriberCount?: string };
+}
 
 export interface MarketSearchData {
     keyword: string;
-    /** Average view count of top search results — proxy for audience demand */
+    /** Exact collection time; cached responses retain the original timestamp. */
+    collectedAt: string;
+    /** Average view count of the relevance sample; not direct search demand. */
     avgViews: number;
     /** Average subscriber count of channels ranking for this keyword */
     avgCompetitorSubscribers: number;
-    /** % of top results uploaded in last 90 days (0-100) — rising trend signal */
+    /** % of the relevance sample uploaded in the last 90 days; a supply-freshness signal. */
     recentUploadRate: number;
     /** Total number of valid results found */
     resultCount: number;
@@ -34,38 +53,42 @@ export async function fetchMarketData(
     apiKey: string,
     maxResults = 10
 ): Promise<MarketSearchData | null> {
-    try {
+    const normalizedKeyword = keyword.trim().toLowerCase().replace(/\s+/g, " ");
+    const cacheKey = `yt:v3:market:${normalizedKeyword}:${maxResults}`;
+
+    return cacheData(cacheKey, async () => {
+      try {
         // Step 1: Search YouTube for this keyword
         const searchUrl = `${YT_BASE}/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&order=relevance&maxResults=${maxResults}&key=${apiKey}`;
-        const searchRes = await fetch(searchUrl);
+        const searchRes = await fetch(searchUrl, { cache: "no-store" });
         if (!searchRes.ok) return null;
 
-        const searchData = await searchRes.json();
-        const items: any[] = searchData.items ?? [];
+        const searchData = await searchRes.json() as { items?: YouTubeSearchItem[] };
+        const items = searchData.items ?? [];
         if (items.length === 0) return null;
 
-        const videoIds = items.map((item: any) => item.id?.videoId).filter(Boolean);
-        const channelIds = [...new Set(items.map((item: any) => item.snippet?.channelId).filter(Boolean))];
+        const videoIds = items.map(item => item.id?.videoId).filter((id): id is string => Boolean(id));
+        const channelIds = [...new Set(items.map(item => item.snippet?.channelId).filter((id): id is string => Boolean(id)))];
 
         if (videoIds.length === 0) return null;
 
         // Step 2: Fetch video stats in parallel with channel stats
         const [videoRes, channelRes] = await Promise.all([
-            fetch(`${YT_BASE}/videos?part=snippet,statistics&id=${videoIds.join(",")}&key=${apiKey}`),
+            fetch(`${YT_BASE}/videos?part=snippet,statistics&id=${videoIds.join(",")}&key=${apiKey}`, { cache: "no-store" }),
             channelIds.length > 0
-                ? fetch(`${YT_BASE}/channels?part=statistics&id=${channelIds.join(",")}&key=${apiKey}`)
+                ? fetch(`${YT_BASE}/channels?part=statistics&id=${channelIds.join(",")}&key=${apiKey}`, { cache: "no-store" })
                 : Promise.resolve(null),
         ]);
 
         if (!videoRes.ok) return null;
 
-        const videoData = await videoRes.json();
-        const videoItems: any[] = videoData.items ?? [];
+        const videoData = await videoRes.json() as { items?: YouTubeVideoItem[] };
+        const videoItems = videoData.items ?? [];
 
         // Build subscriber map
         const subMap: Record<string, number> = {};
         if (channelRes && channelRes.ok) {
-            const chanData = await channelRes.json();
+            const chanData = await channelRes.json() as { items?: YouTubeChannelItem[] };
             for (const c of (chanData.items ?? [])) {
                 subMap[c.id] = parseInt(c.statistics?.subscriberCount ?? "0");
             }
@@ -99,6 +122,7 @@ export async function fetchMarketData(
 
         return {
             keyword,
+            collectedAt: new Date().toISOString(),
             avgViews: Math.round(totalViews / count),
             avgCompetitorSubscribers: Math.round(totalSubs / count),
             recentUploadRate: Math.round((recentCount / count) * 100),
@@ -107,25 +131,25 @@ export async function fetchMarketData(
             maxViews,
             lowCompetitionCount,
         };
-    } catch (e) {
+      } catch (e) {
         console.error(`[MarketIntel] Failed for "${keyword}":`, e);
         return null;
-    }
+      }
+    }, 3600);
 }
 
 /**
  * Compute real SEO score (0-100) from actual market search data.
  * 
- * - High avgViews = high demand = higher score
+ * - High avgViews in the relevance sample = stronger observed performance
  * - High avgCompetitorSubscribers = harder to rank = lower score
- * - High recentUploadRate = trending topic = bonus
+ * - High recentUploadRate = fresher current supply
  * - lowCompetitionCount = weak competition = bonus
  */
 export function computeMarketSEOScore(market: MarketSearchData): number {
     let score = 30; // baseline
 
-    // Demand signal: avg views of top 10 results
-    // 50K+ avg = strong demand, <5K = low demand
+    // Observed-performance proxy: average views of the relevance sample.
     if (market.avgViews >= 500_000) score += 30;
     else if (market.avgViews >= 100_000) score += 22;
     else if (market.avgViews >= 50_000) score += 16;
@@ -139,7 +163,7 @@ export function computeMarketSEOScore(market: MarketSearchData): number {
     else if (market.avgCompetitorSubscribers > 100_000) score -= 6;
     else if (market.avgCompetitorSubscribers > 10_000) score -= 2;
 
-    // Trend bonus: many recent videos = growing topic
+    // Fresh-supply adjustment: many recent videos in the relevance sample.
     if (market.recentUploadRate >= 70) score += 15;
     else if (market.recentUploadRate >= 40) score += 8;
     else if (market.recentUploadRate < 10) score -= 5; // stale topic
@@ -182,13 +206,11 @@ export function computeMarketUniquenessScore(
 }
 
 /**
- * Compute real trend velocity (0-100) from recent upload rate and demand.
- * Penalises topics dominated by large channels — a rising topic where all
- * top results are 1M+ sub channels is trending but effectively unrankable
- * for smaller creators, so the score should reflect actual opportunity.
+ * Compute a current-sample momentum proxy (0-100) from recent-result share
+ * and observed views. This is not direct search-volume history.
  */
 export function computeMarketTrendVelocity(market: MarketSearchData): number {
-    // Combine recent upload rate (supply side) with demand signals
+    // Combine recent upload rate (supply side) with observed performance.
     const baseFromUploads = market.recentUploadRate; // 0-100
     const demandBonus = market.avgViews >= 100_000 ? 15
         : market.avgViews >= 50_000 ? 8 : 0;

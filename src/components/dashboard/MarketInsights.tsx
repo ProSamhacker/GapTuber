@@ -29,9 +29,9 @@ export default function MarketInsights({ outlierVideos, uploadFrequency, optimal
                         <Calendar className="w-5 h-5 text-emerald-400" />
                     </div>
                     <div>
-                        <div className="text-[10px] font-mono text-emerald-500/60 uppercase tracking-widest mb-1">Best_Upload_Day</div>
-                        <div className="text-xl font-bold text-white">{optimalSchedule?.bestDay || "Tuesday"}</div>
-                        <p className="text-[10px] text-zinc-500 mt-1 line-clamp-1">{optimalSchedule?.insight || "Highest historical engagement"}</p>
+                        <div className="text-[10px] font-mono text-emerald-500/60 uppercase tracking-widest mb-1">Observed_Upload_Day</div>
+                        <div className="text-xl font-bold text-white">{optimalSchedule?.bestDay || "Not enough data"}</div>
+                        <p className="text-[10px] text-zinc-500 mt-1 line-clamp-1">{optimalSchedule?.insight || "No reliable publishing window in this sample"}</p>
                     </div>
                 </div>
 
@@ -40,11 +40,11 @@ export default function MarketInsights({ outlierVideos, uploadFrequency, optimal
                         <Clock className="w-5 h-5 text-emerald-400" />
                     </div>
                     <div>
-                        <div className="text-[10px] font-mono text-emerald-500/60 uppercase tracking-widest mb-1">Golden_Hour</div>
+                        <div className="text-[10px] font-mono text-emerald-500/60 uppercase tracking-widest mb-1">Observed_Hour_UTC</div>
                         <div className="text-xl font-bold text-white">
-                            {optimalSchedule ? (optimalSchedule.bestHour > 12 ? `${optimalSchedule.bestHour - 12} PM` : `${optimalSchedule.bestHour} AM`) : "4 PM"}
+                            {optimalSchedule && optimalSchedule.bestHour >= 0 ? `${String(optimalSchedule.bestHour).padStart(2, "0")}:00` : "Not enough data"}
                         </div>
-                        <p className="text-[10px] text-zinc-500 mt-1 line-clamp-1">Peak audience activity window</p>
+                        <p className="text-[10px] text-zinc-500 mt-1 line-clamp-1">Correlation in sampled uploads; not audience activity</p>
                     </div>
                 </div>
 
@@ -54,8 +54,8 @@ export default function MarketInsights({ outlierVideos, uploadFrequency, optimal
                     </div>
                     <div>
                         <div className="text-[10px] font-mono text-emerald-500/60 uppercase tracking-widest mb-1">Upload_Velocity</div>
-                        <div className="text-xl font-bold text-white">{uploadFrequency || 2.5} / wk</div>
-                        <p className="text-[10px] text-zinc-500 mt-1 line-clamp-1">Market benchmark for this niche</p>
+                        <div className="text-xl font-bold text-white">{uploadFrequency != null ? `${uploadFrequency} / wk` : "Not enough data"}</div>
+                        <p className="text-[10px] text-zinc-500 mt-1 line-clamp-1">Observed sample rate, not a recommended target</p>
                     </div>
                 </div>
             </div>
@@ -67,8 +67,8 @@ export default function MarketInsights({ outlierVideos, uploadFrequency, optimal
                         <TrendingUp className="w-5 h-5 text-emerald-400" />
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-white tracking-tight">Virality Gaps</h2>
-                        <p className="text-sm text-zinc-500">Low-sub channels currently breaking the algorithm in your niche.</p>
+                        <h2 className="text-xl font-bold text-white tracking-tight">Public Performance Outliers</h2>
+                        <p className="text-sm text-zinc-500">Videos with unusually high views relative to the channel&apos;s public subscriber count.</p>
                     </div>
                 </div>
 
@@ -122,7 +122,7 @@ export default function MarketInsights({ outlierVideos, uploadFrequency, optimal
                                         </div>
                                         <div className="text-right">
                                             <div className="text-xs font-bold text-emerald-400">+{viewMultiplier}x</div>
-                                            <div className="text-[9px] font-mono text-zinc-600 uppercase">Algo lift</div>
+                                            <div className="text-[9px] font-mono text-zinc-600 uppercase">Views / subscriber</div>
                                         </div>
                                     </div>
                                 </div>
@@ -134,7 +134,7 @@ export default function MarketInsights({ outlierVideos, uploadFrequency, optimal
                 <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 text-emerald-400/50 shrink-0 mt-0.5" />
                     <p className="text-xs text-zinc-400 leading-relaxed">
-                        <span className="text-emerald-400 font-bold">Why this matters:</span> These channels are significantly outperforming their subscriber count. This indicates the <span className="text-zinc-200">YouTube algorithm is heavily promoting this specific topic</span> right now. Modeling your next video after these outliers is the fastest way to trigger a "Virality Gap" for your own channel.
+                        <span className="text-emerald-400 font-bold">How to use this:</span> Treat these as packaging and topic examples worth investigating. Views relative to subscribers can reveal an outlier, but it does not prove algorithmic promotion or predict that copying the topic will work for your channel.
                     </p>
                 </div>
             </div>

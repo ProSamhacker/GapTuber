@@ -16,6 +16,7 @@ export interface VideoData {
 }
 
 export interface CommentData {
+    id?: string;
     text: string;
     videoUrl?: string;
     likeCount?: number;
@@ -219,10 +220,12 @@ export function computeVelocityScore(videos: VideoData[]): {
 export function computeSaturationScore(searchResults: SearchResult[]): {
     score: number;
     insight: string;
-    competitionLevel: "Low" | "Medium" | "High" | "Very High";
+    competitionLevel: "Unknown" | "Low" | "Medium" | "High" | "Very High";
 } {
     if (searchResults.length === 0) {
-        return { score: 10, insight: "No results found — extremely low saturation.", competitionLevel: "Low" };
+        // Missing search data is not evidence of an empty market. Returning a high
+        // opportunity score here previously turned API failures into false positives.
+        return { score: 0, insight: "No search-result sample was available; saturation is unknown.", competitionLevel: "Unknown" };
     }
 
     const thirtyDaysAgo = new Date();
@@ -477,10 +480,10 @@ export function computeEngagementScore(videos: VideoData[]): {
     avgCommentRate: number;
     insight: string;
 } {
-    if (videos.length === 0) return { score: 5, avgLikeRate: 0, avgCommentRate: 0, insight: "No data" };
+    if (videos.length === 0) return { score: 0, avgLikeRate: 0, avgCommentRate: 0, insight: "No video sample was available; engagement is unknown." };
 
     const videosWithData = videos.filter(v => v.views > 0);
-    if (videosWithData.length === 0) return { score: 5, avgLikeRate: 0, avgCommentRate: 0, insight: "No view data" };
+    if (videosWithData.length === 0) return { score: 0, avgLikeRate: 0, avgCommentRate: 0, insight: "The video sample had no public view data; engagement is unknown." };
 
     const likeRates = videosWithData.map(v => v.likes / v.views);
     const commentRates = videosWithData.map(v => v.comments / v.views);
@@ -515,7 +518,7 @@ export function computeTrendMomentum(videos: VideoData[]): {
     trend: "accelerating" | "stable" | "decelerating";
     insight: string;
 } {
-    if (videos.length < 5) return { score: 4, trend: "stable", insight: "Too few videos to detect a reliable trend — interpret with caution." };
+    if (videos.length < 5) return { score: 0, trend: "stable", insight: "At least 5 videos are required to estimate recent performance direction." };
 
     const sortedByDate = [...videos].sort((a, b) =>
         new Date(a.uploadDate).getTime() - new Date(b.uploadDate).getTime()
@@ -544,7 +547,7 @@ export function computeTrendMomentum(videos: VideoData[]): {
         score = Math.max(0, 5 - (1 - crossoverRatio) * 10);
     }
 
-    const insight = `EMA7/EMA21 ratio: ${crossoverRatio.toFixed(2)}. Trend is ${trend}. ${trend === "accelerating" ? "Content demand is rising fast." : trend === "decelerating" ? "Interest may be waning." : "Steady demand."}`;
+    const insight = `Recent-vs-baseline age-normalized view ratio: ${crossoverRatio.toFixed(2)}. This is a performance direction signal, not search-demand history.`;
 
     return { score, trend, insight };
 }
@@ -556,9 +559,9 @@ export function computeTrendMomentum(videos: VideoData[]): {
 export function computeCompetitionScore(searchResults: SearchResult[]): {
     score: number;
     insight: string;
-    difficulty: "Easy" | "Moderate" | "Hard" | "Very Hard";
+    difficulty: "Unknown" | "Easy" | "Moderate" | "Hard" | "Very Hard";
 } {
-    if (searchResults.length === 0) return { score: 10, insight: "No competition found", difficulty: "Easy" };
+    if (searchResults.length === 0) return { score: 0, insight: "No search-result sample was available; ranking difficulty is unknown.", difficulty: "Unknown" };
 
     const avgSubscribers = searchResults.reduce((s, r) => s + (r.subscriberCount ?? 0), 0) / searchResults.length;
     const maxViews = Math.max(...searchResults.map(r => r.views));
@@ -606,8 +609,8 @@ export function generateOptimalTags(keyword: string, videos: VideoData[], topKey
     tags.add(kw);
     tags.add(`${kw} tutorial`);
     tags.add(`${kw} guide`);
-    tags.add(`${kw} 2025`);
-    tags.add(`${kw} 2026`);
+    const currentYear = new Date().getUTCFullYear();
+    tags.add(`${kw} ${currentYear}`);
     tags.add(`how to ${kw}`);
     tags.add(`${kw} for beginners`);
     tags.add(`learn ${kw}`);
@@ -660,13 +663,27 @@ export function computeOptimalUploadSchedule(videos: VideoData[]): {
 
     for (const video of videos) {
         const date = new Date(video.uploadDate);
-        const day = DAYS[date.getDay()];
-        const hour = date.getHours();
+        if (Number.isNaN(date.getTime())) continue;
+        // YouTube timestamps are UTC. Using server-local time made this result vary
+        // between development and production environments.
+        const day = DAYS[date.getUTCDay()];
+        const hour = date.getUTCHours();
 
         dayViews[day] = (dayViews[day] ?? 0) + video.views;
         dayCounts[day] = (dayCounts[day] ?? 0) + 1;
         hourViews[hour] = (hourViews[hour] ?? 0) + video.views;
         hourCounts[hour] = (hourCounts[hour] ?? 0) + 1;
+    }
+
+    const validSampleSize = Object.values(dayCounts).reduce((sum, count) => sum + count, 0);
+    if (validSampleSize === 0) {
+        return {
+            bestDay: "",
+            bestHour: -1,
+            dayDistribution: {},
+            hourDistribution: {},
+            insight: "No valid upload timestamps were available; publishing-time correlation is unknown.",
+        };
     }
 
     // Average views per upload day/hour
@@ -683,7 +700,9 @@ export function computeOptimalUploadSchedule(videos: VideoData[]): {
     const bestDay = Object.entries(dayAvg).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Tuesday";
     const bestHour = Object.entries(hourAvg).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "14";
 
-    const insight = `Best upload day: ${bestDay} (avg ${(dayAvg[bestDay] / 1000).toFixed(1)}K views). Best hour: ${bestHour}:00 UTC.`;
+    const insight = validSampleSize < 12
+        ? `Observed publishing window from only ${validSampleSize} videos; treat this as exploratory, not a best-time prediction.`
+        : `Highest average age-unadjusted views in this sample: ${bestDay} at ${bestHour}:00 UTC. Correlation does not prove the time caused performance.`;
 
     return {
         bestDay,
@@ -742,7 +761,8 @@ export function estimateVideoViews(
     avgChannelViews: number
 ): { low: number; mid: number; high: number } {
     const opportunityMultiplier = (velocityScore * 0.4 + saturationScore * 0.3 + competitionScore * 0.3) / 10;
-    const base = avgChannelViews > 0 ? avgChannelViews : 10000;
+    // No observed baseline means no defensible view scenario.
+    const base = Math.max(0, avgChannelViews);
 
     return {
         low: Math.round(base * opportunityMultiplier * 0.5),
@@ -791,11 +811,12 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
 
     const roundedComposite = Math.round(compositeScore * 10) / 10;
     const keyword = input.keyword;
+    const currentYear = new Date().getUTCFullYear();
     const topFrustrations = frustration.topKeywords.slice(0, 8);
     const suggestedTags = generateOptimalTags(keyword, input.videos, topFrustrations);
     const avgViews = input.videos.length > 0
         ? input.videos.reduce((s, v) => s + v.views, 0) / input.videos.length
-        : 10000;
+        : 0;
     const estimatedViews = estimateVideoViews(velocity.score, saturation.score, competition.score, avgViews);
 
     const baseScores: ScoreBreakdown = {
@@ -828,7 +849,7 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
     // Abandoned niche revival — best when supply gap is the key signal
     if (baseScores.abandonmentScore >= 6) {
         ALL_ANGLES.push({
-            title: `The ${keyword} Guide Nobody Is Making in 2026 (Finally Updated)`,
+            title: `The ${keyword} Guide Nobody Is Making in ${currentYear} (Finally Updated)`,
             angle: "abandoned_niche_revival",
             signalWeights: { velocity: 0.15, frustration: 0.15, saturation: 0.15, trend: 0.15, competition: 0.10, abandonment: 0.30 },
         });
@@ -886,7 +907,7 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
 
     // Always include comparison + mistakes + beginner fallbacks
     ALL_ANGLES.push({
-        title: `${keyword} vs The Alternatives: Honest 2026 Comparison`,
+        title: `${keyword} vs The Alternatives: Honest ${currentYear} Comparison`,
         angle: "comparison",
         signalWeights: { velocity: 0.20, frustration: 0.15, saturation: 0.25, trend: 0.15, competition: 0.15, abandonment: 0.10 },
     });
@@ -896,7 +917,7 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
         signalWeights: { velocity: 0.20, frustration: 0.30, saturation: 0.15, trend: 0.10, competition: 0.15, abandonment: 0.10 },
     });
     ALL_ANGLES.push({
-        title: `Complete ${keyword} Roadmap for Beginners (Step by Step, 2026)`,
+        title: `Complete ${keyword} Roadmap for Beginners (Step by Step, ${currentYear})`,
         angle: "beginner_explainer",
         signalWeights: { velocity: 0.25, frustration: 0.15, saturation: 0.20, trend: 0.15, competition: 0.15, abandonment: 0.10 },
     });
@@ -943,9 +964,9 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
 
 export interface MarketIntelligence {
     demandScore: number;           // 0-100: overall demand in this topic
-    saturationLevel: "Low" | "Medium" | "High" | "Very High";
+    saturationLevel: "Unknown" | "Low" | "Medium" | "High" | "Very High";
     growthTrajectory: "accelerating" | "stable" | "decelerating";
-    difficultyRating: "Easy" | "Moderate" | "Hard" | "Very Hard";
+    difficultyRating: "Unknown" | "Easy" | "Moderate" | "Hard" | "Very Hard";
     estimatedFirstYearViews: { low: number; mid: number; high: number };
     topCompetitorChannels: number;
     avgCompetitorViews: number;

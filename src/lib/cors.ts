@@ -3,6 +3,8 @@
  * Replaces the unsafe "echo origin back" pattern that was in every API route.
  */
 
+import { NextResponse } from "next/server";
+
 const ALLOWED_ORIGINS = [
     // Production app
     "https://gaptuber.app",
@@ -33,6 +35,5 @@ export function getCorsHeaders(req: Request): Record<string, string> {
 }
 
 export function optionsResponse(req: Request) {
-    const { NextResponse } = require("next/server");
     return new NextResponse(null, { status: 204, headers: getCorsHeaders(req) });
 }

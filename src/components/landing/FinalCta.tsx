@@ -33,7 +33,7 @@ export default function FinalCta() {
                             Your competitors<br />are guessing.
                         </h2>
                         <p className="text-zinc-500 text-base leading-relaxed max-w-md">
-                            Run your first gap scan in minutes. Get a statistical confidence score, a ready-to-use hook, and a content outline — before anyone else spots the opportunity.
+                            Run a grounded gap scan in minutes. See the public evidence and data coverage, then turn the strongest hypothesis into a hook and outline worth testing.
                         </p>
                     </motion.div>
 
@@ -64,14 +64,14 @@ export default function FinalCta() {
                                     </Link>
                                 </motion.div>
                                 <motion.div variants={fadeUp}>
-                                    <a
-                                        href="#"
-                                        title="GapTuber Chrome Extension — coming soon"
-                                        className="flex items-center justify-center gap-2 border border-[#2a2a30] hover:border-zinc-600 text-zinc-400 hover:text-zinc-200 px-8 py-3 rounded-md text-sm transition-all"
+                                    <span
+                                        aria-disabled="true"
+                                        title="Chrome Web Store release is not available yet"
+                                        className="flex cursor-not-allowed items-center justify-center gap-2 rounded-md border border-[#2a2a30] px-8 py-3 text-sm text-zinc-600"
                                     >
                                         <Chrome className="w-4 h-4" />
-                                        Get Extension
-                                    </a>
+                                        Extension coming soon
+                                    </span>
                                 </motion.div>
                                 <motion.div variants={fadeUp}>
                                     <a
