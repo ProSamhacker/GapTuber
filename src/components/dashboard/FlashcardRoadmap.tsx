@@ -419,7 +419,7 @@ function IdeaCard({
                             }`}
                         >
                             <Bot className="w-3.5 h-3.5" />
-                            Generate Script <span className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded text-[10px]"><Zap className="w-3 h-3 text-amber-500 fill-amber-500" /> -1</span>
+                            Generate Script <span className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded text-[10px]"><Zap className="w-3 h-3 text-amber-500 fill-amber-500" /> 1 credit</span>
                         </button>
 
                         {!isVaultMode && onSave && (
@@ -651,7 +651,14 @@ interface FlashcardRoadmapProps {
     savedIdeas?: VideoIdeaDB[];
     videoIdeaStatus?: Record<string, string>;
     isVaultMode?: boolean;
-    isYoutubeConnected?: boolean;
+}
+
+interface RecommendationProvenance {
+    generatedAt?: string;
+    marketWindowStart?: string;
+    marketSampleSize?: number;
+    channelSampleSize?: number;
+    allowedSignalSources?: string[];
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -665,7 +672,6 @@ export default function FlashcardRoadmap({
     savedIdeas = [],
     videoIdeaStatus: initialStatusMap,
     isVaultMode = false,
-    isYoutubeConnected = false,
 }: FlashcardRoadmapProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -679,8 +685,17 @@ export default function FlashcardRoadmap({
     const [scriptSettings] = useState({ tone: "Professional", duration: "10-15 min" });
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [useWatchtower, setUseWatchtower] = useState(true);
-    const [uploadTiming, setUploadTiming] = useState<{ bestDay: string; bestHourFmt: string; ranking: string[] } | null>(null);
-    const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
+    const initialSignals = initialIdeas?.[0]?.recommendationSignals as {
+        provenance?: RecommendationProvenance;
+        timingData?: { bestDay: string; bestHourFmt: string; ranking: string[]; sampleSize?: number } | null;
+    } | undefined;
+    const [uploadTiming, setUploadTiming] = useState<{ bestDay: string; bestHourFmt: string; ranking: string[]; sampleSize?: number } | null>(initialSignals?.timingData ?? null);
+    const [confidenceScore, setConfidenceScore] = useState<number | null>(
+        initialIdeas?.[0]?.confidenceAtRecommendation != null
+            ? Math.round(initialIdeas[0].confidenceAtRecommendation! * 100)
+            : null
+    );
+    const [provenance, setProvenance] = useState<RecommendationProvenance | null>(initialSignals?.provenance ?? null);
 
     // Filter / Sort state
     const [search, setSearch] = useState("");
@@ -902,48 +917,30 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
         setIsGenerating(true);
         setError(null);
         try {
-            const payload: any = { channelId, useWatchtower };
-            if (!isYoutubeConnected) {
-                payload.channelStats = { title: topic, subscribers: "0", views: "0", videoCount: "0" };
-                payload.recentVideos = videoIdeas.length > 0
-                    ? videoIdeas.slice(0, 3).map(v => ({ title: v.title, views: String(Math.floor(Math.random() * 15000) + 1000), likes: String(Math.floor(Math.random() * 800) + 50) }))
-                    : [{ title: topic, views: "1000", likes: "100" }];
-            }
+            // The server obtains live YouTube evidence. Never manufacture views or
+            // likes in the browser for an unconnected channel.
+            const payload = { channelId, useWatchtower };
             const res = await fetch("/api/generate-ideas", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
             if (!res.ok) {
-                const fallback = await fetch("/api/channel-creation", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ category, topic }),
-                });
-                if (!fallback.ok) throw new Error("Failed to generate ideas");
-                const data = await fallback.json();
-                if (data.videoIdeas?.length > 0) {
-                    setVideoIdeas(data.videoIdeas);
-                    await fetch("/api/save-blueprint", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ channelId, videoIdeas: data.videoIdeas }),
-                    });
-                    window.dispatchEvent(new CustomEvent("credit-update", { detail: { deduct: 1 } }));
-                    router.refresh();
-                } else throw new Error("No ideas returned");
-                return;
+                const failure = await res.json().catch(() => null) as { error?: string } | null;
+                throw new Error(failure?.error || "Failed to generate ideas");
             }
             const data = await res.json();
             if (data.videoIdeas?.length > 0) {
                 setVideoIdeas(data.videoIdeas);
                 if (data.timingData) setUploadTiming(data.timingData);
                 if (data.confidenceScore !== undefined) setConfidenceScore(data.confidenceScore);
+                if (data.provenance) setProvenance(data.provenance);
                 router.refresh();
             } else throw new Error("No ideas returned");
         } catch (err) {
-            setError("Failed to generate ideas. Please try again.");
-            toast.error("Failed to generate ideas. Please try again.");
+            const message = err instanceof Error ? err.message : "Failed to generate ideas. Please try again.";
+            setError(message);
+            toast.error(message);
         } finally {
             setIsGenerating(false);
         }
@@ -968,14 +965,14 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                             {isVaultMode ? "Idea Vault" : "Your Video Plan"}
                         </h2>
                         <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold rounded-lg uppercase">
-                            {isVaultMode ? "Your Saved Ideas" : "Powered by AI"}
+                            {isVaultMode ? "Your Saved Ideas" : "AI synthesis"}
                         </span>
                         {!isVaultMode && confidenceScore !== null && (
                             <span className={`px-2 py-0.5 border text-[10px] font-mono font-bold rounded-lg uppercase ${
                                 confidenceScore >= 70 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                                 : confidenceScore >= 40 ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
                                 : "bg-red-500/10 text-red-400 border-red-500/20"}`}>
-                                Signal {confidenceScore}%
+                                {confidenceScore >= 70 ? "Strong" : confidenceScore >= 40 ? "Moderate" : "Low evidence"} · {confidenceScore}%
                             </span>
                         )}
                     </div>
@@ -983,14 +980,21 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                         {isVaultMode
                             ? `You have ${videoIdeas.length} saved ideas ready to film.`
                             : videoIdeas.length > 0
-                                ? `${ideas.length} video ideas ready — click any card to write a script.`
+                                ? `${ideas.length} ideas in your plan — choose one to develop into a script.`
                                 : `Generate video ideas tailored to your ${category} niche.`}
                     </p>
                     <p className="text-xs text-zinc-600">
                         {isVaultMode
                             ? "Save ideas from your Gap Scanner, Comment Miner, or Competitor alerts to build your content plan."
-                            : "Ideas are based on real YouTube data: what viewers want, what competitors are missing, and what's trending now."}
+                            : confidenceScore !== null && confidenceScore < 40
+                                ? "Early estimates from limited evidence. Validate the topic before recording."
+                                : "AI synthesis grounded in the live YouTube evidence available at generation time—not a guarantee of performance."}
                     </p>
+                    {!isVaultMode && provenance?.generatedAt && (
+                        <p className="text-[10px] font-mono text-zinc-600">
+                            Data checked {new Date(provenance.generatedAt).toLocaleString()} · {provenance.marketSampleSize ?? 0} recent market videos · {provenance.channelSampleSize ?? 0} channel videos
+                        </p>
+                    )}
                 </div>
 
                 {/* Right side controls */}
@@ -1015,7 +1019,7 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                                 className="flex items-center gap-2 bg-[#1e1e22] hover:bg-[#2a2a30] text-zinc-300 text-xs px-3 py-2 rounded-xl border border-[#2a2a30] transition-colors disabled:opacity-50"
                             >
                                 {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                                Rerun <span className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded text-[10px]"><Zap className="w-3 h-3 text-amber-500 fill-amber-500" /> -1</span>
+                                Rerun <span className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded text-[10px]"><Zap className="w-3 h-3 text-amber-500 fill-amber-500" /> 1 credit</span>
                             </button>
                         </>
                     )}
@@ -1075,7 +1079,7 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                 <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-[#111113]/60 border border-[#1e1e22]/50 rounded-xl">
                     <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500 uppercase tracking-widest">
                         <Clock className="w-3.5 h-3.5 text-sky-400" />
-                        Optimal Upload Window
+                        Best observed publish window
                     </div>
                     <span className="px-2.5 py-1 bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-mono font-bold rounded-lg">
                         📅 {uploadTiming.bestDay}
@@ -1083,6 +1087,7 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                     <span className="px-2.5 py-1 bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-mono font-bold rounded-lg">
                         🕐 {uploadTiming.bestHourFmt}
                     </span>
+                    <span className="text-[10px] text-zinc-600">Historical pattern from {uploadTiming.sampleSize ?? "available"} uploads—not a guarantee.</span>
                 </div>
             )}
 
@@ -1114,7 +1119,7 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                             disabled={isGenerating}
                             className="inline-flex items-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-500 transition-colors disabled:opacity-50"
                         >
-                            {isGenerating ? <><Loader2 className="w-4 h-4 animate-spin" />Computing...</> : <><Sparkles className="w-4 h-4" />Compute Video Ideas <span className="ml-1 flex items-center gap-1 bg-black/20 px-2 py-0.5 rounded-full text-xs font-mono"><Zap className="w-3 h-3 text-amber-400 fill-amber-400" /> -1</span></>}
+                            {isGenerating ? <><Loader2 className="w-4 h-4 animate-spin" />Computing...</> : <><Sparkles className="w-4 h-4" />Compute Video Ideas <span className="ml-1 flex items-center gap-1 bg-black/20 px-2 py-0.5 rounded-full text-xs font-mono"><Zap className="w-3 h-3 text-amber-400 fill-amber-400" /> 1 credit</span></>}
                         </button>
                     )}
                 </div>

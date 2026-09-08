@@ -83,6 +83,9 @@ export interface VideoIdeaDB {
         day7?: number;
         day30?: number;
     } | null;
+    recommendedAt?: string;
+    confidenceAtRecommendation?: number | null;
+    recommendationSignals?: Record<string, unknown> | null;
 }
 
 export type User = typeof users.$inferSelect;

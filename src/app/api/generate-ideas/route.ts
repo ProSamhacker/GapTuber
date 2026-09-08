@@ -23,6 +23,7 @@ import {
     formatOutcomeLearningContext,
     getOutcomeAdjustment,
 } from "@/lib/engine/outcome-learning";
+import { hasNonCurrentYear } from "@/lib/idea-freshness";
 
 export const maxDuration = 300; // Fluid Compute: 5 minute max on Vercel Hobby plan
 
@@ -84,10 +85,6 @@ export async function POST(req: NextRequest) {
 
         if (dbUser.credits < 1) {
             return NextResponse.json({ error: "Insufficient credits. You need 1 credit to generate ideas." }, { status: 402 });
-        }
-
-        if (!channel.youtubeAccessToken && (!recentVideos || recentVideos.length === 0)) {
-            return NextResponse.json({ error: "Missing required recent videos data for unconnected channel" }, { status: 400 });
         }
 
         const allVaultIdeas = await db.query.ideaVault.findMany({
@@ -174,9 +171,12 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        if (!actualChannelStats || !actualRecentVideos || actualRecentVideos.length === 0) {
-            return NextResponse.json({ error: "Missing required data" }, { status: 400 });
-        }
+        actualChannelStats ??= {
+            title: channel.name,
+            subscribers: "unavailable",
+            views: "unavailable",
+            videoCount: "unavailable",
+        };
 
         const keys = [
             process.env.GROQ_API_KEY,
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
         const topVideos = (actualRecentVideos as any[])
             .sort((a, b) => (parseInt(b.views) || 0) - (parseInt(a.views) || 0))
             .slice(0, 10)
-            .map((v, i) => `  ${i + 1}. "${v.title}" — ${parseInt(v.views || "0").toLocaleString()} views, ${parseInt(v.likes || "0").toLocaleString()} likes`)
+            .map((v, i) => `  ${i + 1}. "${v.title}" — ${parseInt(v.views || "0").toLocaleString()} views, ${parseInt(v.likes || "0").toLocaleString()} likes — published ${v.publishedAt?.slice?.(0, 10) || "date unavailable"}`)
             .join("\n");
 
         // Map to VideoData objects to compute deterministic statistical signals
@@ -212,17 +212,36 @@ export async function POST(req: NextRequest) {
 
         // Tier 4: Broader market/competitor intelligence (YouTube search)
         let marketContextBlock = "";
-        const ytApiKey = getRandomYouTubeApiKey();
+        let marketSearchResults: Awaited<ReturnType<typeof getSearchResults>> = [];
+        let ytApiKey: string | null = null;
+        try {
+            ytApiKey = getRandomYouTubeApiKey();
+        } catch {
+            logger.warn("[GenerateIdeas] YouTube API key unavailable for live market lookup.");
+        }
         const targetTopic = channel.topic || channel.category;
         if (ytApiKey && targetTopic) {
             try {
-                const searchResults = await getSearchResults(targetTopic, ytApiKey, 10);
-                if (searchResults.length > 0) {
-                    const satScore = computeSaturationScore(searchResults);
-                    const topCompTitles = searchResults.slice(0, 5).map(r => `  - "${r.title}" by ${r.channel}`).join("\n");
-                    marketContextBlock = `\nBROADER MARKET & COMPETITOR LANDSCAPE ("${targetTopic}"):\n- Market Saturation Score: ${satScore.score.toFixed(1)}/10 (${satScore.competitionLevel} competition)\n- Trending Competitor Titles in this space:\n${topCompTitles}\n`;
+                const marketWindowStart = new Date();
+                marketWindowStart.setUTCDate(marketWindowStart.getUTCDate() - 180);
+                marketSearchResults = await getSearchResults(targetTopic, ytApiKey, 20, marketWindowStart);
+                if (marketSearchResults.length > 0) {
+                    const satScore = computeSaturationScore(marketSearchResults);
+                    const topCompTitles = marketSearchResults.slice(0, 10).map(r =>
+                        `  - "${r.title}" by ${r.channel} — ${r.views.toLocaleString()} views — published ${r.uploadDate.slice(0, 10)}`
+                    ).join("\n");
+                    marketContextBlock = `\nRECENT YOUTUBE MARKET EVIDENCE ("${targetTopic}", published in the last 180 days):\n- Search sample: ${marketSearchResults.length} videos fetched live from YouTube Data API\n- Market Saturation Score: ${satScore.score.toFixed(1)}/10 (${satScore.competitionLevel} competition)\n- Recent relevant videos:\n${topCompTitles}\n`;
                 }
-            } catch { /* graceful fallback */ }
+            } catch (error) {
+                logger.warn("[GenerateIdeas] Live market lookup failed", error);
+            }
+        }
+
+        if (actualRecentVideos.length === 0 && marketSearchResults.length === 0) {
+            return NextResponse.json(
+                { error: "Live YouTube evidence is temporarily unavailable. No ideas were generated from model memory." },
+                { status: 503 },
+            );
         }
 
         // Tier 5: Inject Top Audience Pain Points (Comment Miner)
@@ -278,39 +297,40 @@ export async function POST(req: NextRequest) {
 
         // ── UPGRADE 2: Upload Timing Intelligence ────────────────────────────
         let timingBlock = "";
-        let timingData: { bestDay: string; bestHourFmt: string; ranking: string[] } | null = null;
+        let timingData: { bestDay: string; bestHourFmt: string; ranking: string[]; sampleSize: number } | null = null;
         try {
             const videosWithDates = (actualRecentVideos as any[]).filter(v => v.publishedAt);
-            if (videosWithDates.length >= 3) {
+            if (videosWithDates.length >= 8) {
                 const dayCount: Record<string, number[]> = {};
                 const hourCount: Record<number, number[]> = {};
 
                 videosWithDates.forEach(v => {
                     const d = new Date(v.publishedAt);
                     const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()];
-                    const hour = d.getUTCHours();
+                    const hour = Math.floor(d.getUTCHours() / 4) * 4;
                     const views = parseInt(v.views || "0");
                     dayCount[day] = [...(dayCount[day] || []), views];
                     hourCount[hour] = [...(hourCount[hour] || []), views];
                 });
 
-                const avgByDay = Object.entries(dayCount).map(([day, views]) => ({
+                const avgByDay = Object.entries(dayCount).filter(([, views]) => views.length >= 2).map(([day, views]) => ({
                     day, avg: views.reduce((a, b) => a + b, 0) / views.length
                 })).sort((a, b) => b.avg - a.avg);
 
-                const avgByHour = Object.entries(hourCount).map(([hour, views]) => ({
+                const avgByHour = Object.entries(hourCount).filter(([, views]) => views.length >= 2).map(([hour, views]) => ({
                     hour: parseInt(hour), avg: views.reduce((a, b) => a + b, 0) / views.length
                 })).sort((a, b) => b.avg - a.avg);
 
-                const bestDay = avgByDay[0]?.day || "N/A";
+                const bestDay = avgByDay[0]?.day;
                 const bestHour = avgByHour[0]?.hour;
-                const bestHourFmt = bestHour !== undefined
-                    ? `${bestHour % 12 || 12}:00 ${bestHour < 12 ? "AM" : "PM"} UTC`
-                    : "Unknown";
-                const ranking = avgByDay.slice(0, 3).map(d => `${d.day} (${Math.round(d.avg / 1000)}K avg)`);
+                if (bestDay && bestHour !== undefined) {
+                    const endHour = (bestHour + 4) % 24;
+                    const bestHourFmt = `${String(bestHour).padStart(2, "0")}:00–${String(endHour).padStart(2, "0")}:00 UTC`;
+                    const ranking = avgByDay.slice(0, 3).map(d => `${d.day} (${Math.round(d.avg).toLocaleString()} avg views)`);
 
-                timingData = { bestDay, bestHourFmt, ranking };
-                timingBlock = `\nUPLOAD TIMING INTELLIGENCE:\n- Best Day: ${bestDay}\n- Best Hour: ${bestHourFmt}\n- Top 3 Days: ${ranking.join(" > ")}\n`;
+                    timingData = { bestDay, bestHourFmt, ranking, sampleSize: videosWithDates.length };
+                    timingBlock = `\nHISTORICAL PUBLISH-TIME PATTERN (descriptive, not causal):\n- Best observed day: ${bestDay}\n- Best observed 4-hour window: ${bestHourFmt}\n- Sample: ${videosWithDates.length} channel uploads; only repeated day/time buckets were eligible\n`;
+                }
             }
         } catch { /* non-fatal */ }
 
@@ -338,21 +358,39 @@ export async function POST(req: NextRequest) {
             watchtowerPct * 10
         ));
 
-        const prompt = `You are an elite, cutting-edge YouTube viral growth strategist and expert content producer.
+        const generatedAt = new Date();
+        const currentYear = generatedAt.getUTCFullYear();
+        const marketWindowStartIso = new Date(generatedAt.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
+        const allowedSignalSources = [
+            actualRecentVideos.length > 0 ? "Velocity Signal" : null,
+            actualRecentVideos.length >= 3 ? "Trend Momentum" : null,
+            marketSearchResults.length > 0 ? "Market Gap" : null,
+            audienceMiningBlock ? "Comment Demand" : null,
+            watchtowerBlock ? "Watchtower" : null,
+        ].filter((value): value is string => Boolean(value));
+        const formatVerifiedCount = (value: unknown) => {
+            const parsed = Number.parseInt(String(value ?? ""), 10);
+            return Number.isFinite(parsed) ? parsed.toLocaleString() : "unavailable";
+        };
+
+        const prompt = `You are an evidence-constrained YouTube content strategist. You synthesize supplied data; you do not use model memory as evidence.
+
+CURRENT UTC DATE: ${generatedAt.toISOString()}
+CURRENT YEAR: ${currentYear}
 
 TASK: Analyze this creator's performance history alongside competitor intelligence, upload timing, market data, and audience pain points. Generate exactly 5 ultra-high-quality, viral video blueprints designed for explosive CTR and maximum retention.
 
 VIRAL STRATEGY RULES:
 1. HIGH-IMPACT TITLES: Use psychological triggers (Curiosity Gaps, FOMO, Contrarian Angles, Challenging Status Quo). Titles must be irresistibly clickable.
-2. CURRENT & TRENDING: Ground every concept in active YouTube trends. Intercept competitor gaps from the Watchtower data.
+2. CURRENT & TRENDING: Use only the dated evidence supplied below. Do not infer that a product, model version, price, free tier, feature, watermark policy, or trend is current unless that exact fact appears in the evidence.
 3. OUTLIER HOOK FORMULA: The first 10 seconds hook MUST feature a pattern interrupt. Deliver the title promise instantly.
 4. SURGICAL VALUE: Address verified audience pain points from the Comment Miner data.
 
 CREATOR CHANNEL DATA:
 - Channel Name: ${String(actualChannelStats?.title || "Unknown")}
-- Subscribers: ${parseInt(String(actualChannelStats?.subscribers || "0")).toLocaleString()}
-- Total Views: ${parseInt(String(actualChannelStats?.views || "0")).toLocaleString()}
-- Total Videos: ${parseInt(String(actualChannelStats?.videoCount || "0")).toLocaleString()}
+- Subscribers: ${formatVerifiedCount(actualChannelStats?.subscribers)}
+- Total Views: ${formatVerifiedCount(actualChannelStats?.views)}
+- Total Videos: ${formatVerifiedCount(actualChannelStats?.videoCount)}
 
 COMPUTED INTERNAL GAP SIGNALS:
 - Velocity Score: ${velocitySignal.score.toFixed(1)}/10 (${velocitySignal.insight})
@@ -370,7 +408,8 @@ Distribute the 5 ideas exactly as follows. Start the "format" field with the seg
 4. RETENTION | <format> — Community-building content. Reward loyal viewers with exclusive value.
 5. WILDCARD | <format> — Bold, controversial, or trend-hijacking bet. Maximum viral upside.
 
-For each idea set "signalSource" to whichever drove it: 'Watchtower', 'Comment Demand', 'Velocity Signal', 'Trend Momentum', or 'Market Gap'.
+ALLOWED EVIDENCE LABELS: ${allowedSignalSources.join(", ")}.
+For each idea, set "signalSource" to exactly one allowed label that is genuinely supported by the supplied block. Never invent Watchtower, comment, market, velocity, or trend evidence. Do not put any year other than ${currentYear} in a title or hook. Prefer no year at all.
 ${deduplicationBlock}
 Output exactly 5 blueprints matching this segmentation.`;
 
@@ -399,6 +438,12 @@ Output exactly 5 blueprints matching this segmentation.`;
                 const normalized = Array.isArray(parsedJson) ? { videoIdeas: parsedJson } : parsedJson;
                 const validated = ResponseSchema.safeParse(normalized);
                 if (!validated.success) throw new Error(`Invalid AI response: ${validated.error.message}`);
+                if (validated.data.videoIdeas.some(idea => hasNonCurrentYear(idea, currentYear))) {
+                    throw new Error(`AI response used a non-current year; expected ${currentYear}.`);
+                }
+                if (validated.data.videoIdeas.some(idea => !idea.signalSource || !allowedSignalSources.includes(idea.signalSource))) {
+                    throw new Error("AI response cited an evidence source that was not available.");
+                }
                 videoIdeas = validated.data.videoIdeas;
                 break;
             } catch (err) {
@@ -470,8 +515,17 @@ Output exactly 5 blueprints matching this segmentation.`;
                         adjustment: learned.adjustment,
                         confidence: learned.confidence,
                     },
+                    provenance: {
+                        source: "YouTube Data API v3",
+                        generatedAt: generatedAt.toISOString(),
+                        marketWindowStart: marketWindowStartIso,
+                        marketSampleSize: marketSearchResults.length,
+                        channelSampleSize: actualRecentVideos.length,
+                        allowedSignalSources,
+                    },
+                    timingData,
                 },
-                recommendedAt: new Date(),
+                recommendedAt: generatedAt,
                 scoringVersion: `v2.0+${outcomeLearning.version}`,
             }});
             await db.insert(ideaVault).values(inserts);
@@ -485,6 +539,14 @@ Output exactly 5 blueprints matching this segmentation.`;
             videoIdeas,
             confidenceScore,
             timingData,
+            provenance: {
+                source: "YouTube Data API v3",
+                generatedAt: generatedAt.toISOString(),
+                marketWindowStart: marketWindowStartIso,
+                marketSampleSize: marketSearchResults.length,
+                channelSampleSize: actualRecentVideos.length,
+                allowedSignalSources,
+            },
             outcomeLearning: {
                 active: outcomeLearning.active,
                 sampleSize: outcomeLearning.sampleSize,

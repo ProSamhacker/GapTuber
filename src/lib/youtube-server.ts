@@ -138,12 +138,27 @@ export async function getRecentChannelVideos(channelId: string, apiKey: string, 
 /**
  * Fetches search results for a keyword to determine market saturation.
  */
-export async function getSearchResults(keyword: string, apiKey: string, maxResults = 15): Promise<SearchResult[]> {
-    const cacheKey = `yt:v2:search:${keyword}:${maxResults}`;
+export async function getSearchResults(
+    keyword: string,
+    apiKey: string,
+    maxResults = 15,
+    publishedAfter?: Date,
+): Promise<SearchResult[]> {
+    const freshnessKey = publishedAfter?.toISOString().slice(0, 10) ?? "all-time";
+    const cacheKey = `yt:v3:search:${keyword}:${maxResults}:${freshnessKey}`;
     return cacheData(cacheKey, async () => {
         try {
-            const searchUrl = `${YT_BASE}/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&order=relevance&maxResults=${maxResults}&key=${apiKey}`;
-            const searchRes = await fetch(searchUrl);
+            const searchParams = new URLSearchParams({
+                part: "snippet",
+                q: keyword,
+                type: "video",
+                order: "relevance",
+                maxResults: String(maxResults),
+                key: apiKey,
+            });
+            if (publishedAfter) searchParams.set("publishedAfter", publishedAfter.toISOString());
+
+            const searchRes = await fetch(`${YT_BASE}/search?${searchParams.toString()}`);
             if (!searchRes.ok) throw new Error(`YouTube search failed (${searchRes.status})`);
 
             const searchData = await searchRes.json() as { items?: SearchItem[] };

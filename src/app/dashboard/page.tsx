@@ -12,6 +12,7 @@ import { getCachedUser, getCachedChannels, getCachedScans } from "@/lib/data";
 import { db } from "@/db";
 import { ideaVault } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { hasNonCurrentYear } from "@/lib/idea-freshness";
 
 // Heavy components lazy-loaded to reduce initial bundle
 const FlashcardRoadmap = dynamic(() => import("@/components/dashboard/FlashcardRoadmap"), {
@@ -250,7 +251,6 @@ export default async function DashboardPage({
 
     // Fetch YouTube Stats if connected
     let youtubeStats = null;
-    let isYoutubeConnected = false;
     let isTokenExpired = false;
     
     if (activeChannel.youtubeAccessToken) {
@@ -264,7 +264,6 @@ export default async function DashboardPage({
             const channelData = await channelRes.json();
             if (channelData.items && channelData.items.length > 0) {
                 youtubeStats = channelData.items[0];
-                isYoutubeConnected = true;
             } else if (channelData.error) {
                 isTokenExpired = true;
             }
@@ -280,7 +279,12 @@ export default async function DashboardPage({
         orderBy: (iv, { desc }) => [desc(iv.createdAt)]
     });
 
-    const systemIdeas = allVaultIdeasRaw.filter(i => i.source === "system");
+    // Do not keep presenting an old year as a current recommendation. The row is
+    // preserved for history and will be replaced on the next rerun.
+    const systemIdeas = allVaultIdeasRaw.filter(i =>
+        i.source === "system" &&
+        !(i.status === "backlog" && hasNonCurrentYear({ title: i.title, hook: i.hook }))
+    );
     const mappedSystemIdeas = systemIdeas.map(iv => ({
         id: iv.id,
         status: iv.status,
@@ -296,6 +300,9 @@ export default async function DashboardPage({
         signalSource: iv.referenceId || iv.source,  // referenceId holds AI signal for system ideas
         description: iv.description || "",
         tags: iv.tags || [],
+        recommendedAt: (iv.recommendedAt ?? iv.createdAt).toISOString(),
+        confidenceAtRecommendation: iv.confidenceAtRecommendation,
+        recommendationSignals: iv.recommendationSignals,
     }));
     // Map ideaVault statuses → component statuses (ready/filming/done)
     const toCardStatus = (status: string): string => {
@@ -350,7 +357,7 @@ export default async function DashboardPage({
             <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-[#1e1e22] pb-6">
                 <div className="space-y-3">
                     <div className="inline-flex items-center gap-2 px-2 py-0.5 bg-[#1e1e22] text-zinc-400 rounded text-[10px] font-mono font-bold uppercase tracking-wider">
-                        {activeChannel.role === "new_tuber" ? "project_new" : "project_existing"}
+                        {activeChannel.role === "new_tuber" ? "New channel" : "Existing channel"}
                     </div>
                     {youtubeStats ? (
                         <div className="flex items-center gap-4 mt-2">
@@ -440,7 +447,6 @@ export default async function DashboardPage({
                     videoIdeas={mappedSystemIdeas}
                     savedIdeas={mappedManualIdeas}
                     videoIdeaStatus={mappedSystemStatuses}
-                    isYoutubeConnected={isYoutubeConnected}
                 />
             </div>
 
