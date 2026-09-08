@@ -376,6 +376,8 @@ function IdeaCard({
                     </div>
                 )}
 
+                <EvidencePanel idea={rawIdea} />
+
                 {/* ── Row 6.5: Performance Outcomes (Launched only) ── */}
                 {idea.status === "done" && idea.outcomeMultipliers && (
                     <div className="mt-3 flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
@@ -659,6 +661,90 @@ interface RecommendationProvenance {
     marketSampleSize?: number;
     channelSampleSize?: number;
     allowedSignalSources?: string[];
+    audienceEvidenceCount?: number;
+    watchtowerEvidenceCount?: number;
+}
+
+interface StoredRecommendationSignals {
+    liveSignals?: {
+        velocity?: number;
+        abandonment?: number;
+        trend?: number;
+    };
+    outcomeLearning?: {
+        active?: boolean;
+        sampleSize?: number;
+        adjustment?: number;
+        confidence?: number;
+    };
+    provenance?: RecommendationProvenance;
+}
+
+function EvidencePanel({ idea }: { idea: VideoIdeaDB }) {
+    const [open, setOpen] = useState(false);
+    const signals = idea.recommendationSignals as StoredRecommendationSignals | null | undefined;
+    const provenance = signals?.provenance;
+    const live = signals?.liveSignals;
+    const learning = signals?.outcomeLearning;
+    const confidence = idea.confidenceAtRecommendation != null
+        ? Math.round(idea.confidenceAtRecommendation * 100)
+        : null;
+    const strength = confidence == null ? "Unknown" : confidence >= 70 ? "Strong" : confidence >= 40 ? "Moderate" : "Limited";
+    const hasEvidence = Boolean(signals || idea.recommendedAt || confidence != null);
+    const checkedAt = provenance?.generatedAt || idea.recommendedAt;
+
+    return (
+        <div className="mt-2.5 overflow-hidden rounded-xl border border-[#1e1e22]">
+            <button
+                type="button"
+                onClick={() => setOpen(value => !value)}
+                className="flex w-full items-center justify-between px-3 py-2 text-[9px] font-mono uppercase tracking-widest text-zinc-600 transition-colors hover:text-zinc-400"
+            >
+                <span className="flex items-center gap-1.5">
+                    <BookOpen className="h-3 w-3" />
+                    Evidence · {strength}{confidence != null ? ` ${confidence}%` : ""}
+                </span>
+                <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+            </button>
+            {open && (
+                <div className="space-y-2 border-t border-[#1e1e22] px-3 py-3 text-[10px] leading-relaxed text-zinc-500">
+                    {!hasEvidence ? (
+                        <p>This legacy idea has no stored evidence snapshot. Rerun the analysis before relying on it.</p>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="rounded-lg bg-[#0c0c0e] p-2">
+                                    <span className="block text-zinc-700">Recent market videos</span>
+                                    <strong className="text-zinc-300">{provenance?.marketSampleSize ?? "Not recorded"}</strong>
+                                </div>
+                                <div className="rounded-lg bg-[#0c0c0e] p-2">
+                                    <span className="block text-zinc-700">Channel videos</span>
+                                    <strong className="text-zinc-300">{provenance?.channelSampleSize ?? "Not recorded"}</strong>
+                                </div>
+                            </div>
+                            {live && (
+                                <p>
+                                    Measured signals: velocity {live.velocity?.toFixed(1) ?? "—"}/10 · trend {live.trend?.toFixed(1) ?? "—"}/10 · topic inactivity {live.abandonment?.toFixed(1) ?? "—"}/10
+                                </p>
+                            )}
+                            {(provenance?.watchtowerEvidenceCount || provenance?.audienceEvidenceCount) ? (
+                                <p>
+                                    Additional stored evidence: {provenance.watchtowerEvidenceCount ?? 0} Watchtower signals · {provenance.audienceEvidenceCount ?? 0} audience themes
+                                </p>
+                            ) : null}
+                            <p>
+                                Outcome learning: {learning?.active
+                                    ? `active from ${learning.sampleSize ?? 0} published outcomes`
+                                    : "not active yet—more linked published outcomes are required"}.
+                            </p>
+                            <p>Checked {checkedAt ? new Date(checkedAt).toLocaleString() : "at an unrecorded time"}.</p>
+                            <p className="text-zinc-600">These public-data indicators support an experiment; they do not validate future views, CTR, or retention.</p>
+                        </>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────

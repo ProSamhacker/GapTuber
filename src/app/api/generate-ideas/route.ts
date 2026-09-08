@@ -246,15 +246,19 @@ export async function POST(req: NextRequest) {
 
         // Tier 5: Inject Top Audience Pain Points (Comment Miner)
         let audienceMiningBlock = "";
-        const savedIdeasArr = allVaultIdeas.filter(iv => iv.source === "comment_mining" || iv.source === "watchtower" || iv.source === "manual");
-        const minedFrustrations = savedIdeasArr.slice(-5);
+        let audienceEvidenceCount = 0;
+        const minedFrustrations = allVaultIdeas
+            .filter(iv => iv.source === "comment_mining")
+            .slice(-5);
         if (minedFrustrations.length > 0) {
+            audienceEvidenceCount = minedFrustrations.length;
             const frustrationLines = minedFrustrations.map(f => `  - Theme: "${f.title}" (Angle: ${f.whyItWorks || f.hook})`).join("\n");
             audienceMiningBlock = `\nVERIFIED AUDIENCE PAIN POINTS (Mined from Competitor Comments):\n${frustrationLines}\n`;
         }
 
         // ── UPGRADE 1: Pipe Watchtower Signals (only if user enabled it) ──────────
         let watchtowerBlock = "";
+        let watchtowerEvidenceCount = 0;
         if (useWatchtower) {
             try {
                 const monitors = await db.select()
@@ -280,6 +284,7 @@ export async function POST(req: NextRequest) {
                         .slice(0, 4);
 
                     if (highSignals.length > 0) {
+                        watchtowerEvidenceCount = highSignals.length;
                         const signalLines = highSignals.map(i => {
                             const a = i.analysis as any;
                             return [
@@ -522,6 +527,8 @@ Output exactly 5 blueprints matching this segmentation.`;
                         marketSampleSize: marketSearchResults.length,
                         channelSampleSize: actualRecentVideos.length,
                         allowedSignalSources,
+                        audienceEvidenceCount,
+                        watchtowerEvidenceCount,
                     },
                     timingData,
                 },
@@ -546,6 +553,8 @@ Output exactly 5 blueprints matching this segmentation.`;
                 marketSampleSize: marketSearchResults.length,
                 channelSampleSize: actualRecentVideos.length,
                 allowedSignalSources,
+                audienceEvidenceCount,
+                watchtowerEvidenceCount,
             },
             outcomeLearning: {
                 active: outcomeLearning.active,

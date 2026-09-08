@@ -85,7 +85,7 @@ export default function Hero() {
                             animate="visible"
                             className="text-zinc-400 text-lg leading-relaxed mb-8 max-w-md"
                         >
-                            Scan competitor channels directly from YouTube with our Chrome Extension. Save viral hooks to your Vault, and generate full scripts in the AI Studio.
+                            Scan competitor channels directly from YouTube with our Chrome Extension. Save promising hooks to your Vault, and develop evidence-aware scripts in the AI Studio.
                         </motion.p>
 
                         <motion.div
@@ -162,7 +162,7 @@ export default function Hero() {
                             {/* Output */}
                             <div className="p-5 space-y-4">
                                 <div>
-                                    <p className="text-zinc-600 text-xs mb-1">GAP #1 · SCORE</p>
+                                    <p className="text-zinc-600 text-xs mb-1">ILLUSTRATIVE EXAMPLE · NOT A LIVE RESULT</p>
                                     <p className="text-emerald-400 text-3xl font-extrabold">{SAMPLE_GAP.score}<span className="text-zinc-700 text-lg">/10</span></p>
                                 </div>
                                 <div>

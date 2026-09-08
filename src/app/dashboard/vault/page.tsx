@@ -60,7 +60,11 @@ export default async function IdeaVaultPage({
         tags: iv.tags || [],
         status: iv.status,
         youtubeVideoId: iv.youtubeVideoId,
-        outcomeMultipliers: iv.outcomeMultipliers
+        outcomeMultipliers: iv.outcomeMultipliers,
+        recommendedAt: (iv.recommendedAt ?? iv.createdAt).toISOString(),
+        confidenceAtRecommendation: iv.confidenceAtRecommendation,
+        recommendationSignals: iv.recommendationSignals,
+        opportunityScoreAtRecommendation: iv.opportunityScoreAtRecommendation,
     }));
 
     // Map ideaVault statuses → component statuses (ready/filming/done)
@@ -79,7 +83,7 @@ export default async function IdeaVaultPage({
         <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 fade-up">
             <div className="mb-8 border-b border-[#1e1e22] pb-6">
                 <div className="inline-flex items-center gap-2 px-2 py-0.5 bg-[#1e1e22] text-zinc-400 rounded text-[10px] font-mono font-bold uppercase tracking-wider mb-3">
-                    project_{activeChannel.name.replace(/\s+/g, '_').toLowerCase()}
+                    Idea project · {activeChannel.name}
                 </div>
                 <h1 className="text-3xl font-extrabold text-white tracking-tight">Idea Vault & Content Roadmap</h1>
                 <p className="text-zinc-500 text-sm mt-2 max-w-xl">

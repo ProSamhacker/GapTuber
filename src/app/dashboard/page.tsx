@@ -303,6 +303,7 @@ export default async function DashboardPage({
         recommendedAt: (iv.recommendedAt ?? iv.createdAt).toISOString(),
         confidenceAtRecommendation: iv.confidenceAtRecommendation,
         recommendationSignals: iv.recommendationSignals,
+        opportunityScoreAtRecommendation: iv.opportunityScoreAtRecommendation,
     }));
     // Map ideaVault statuses → component statuses (ready/filming/done)
     const toCardStatus = (status: string): string => {
@@ -332,6 +333,10 @@ export default async function DashboardPage({
         signalSource: iv.referenceId || iv.source,  // referenceId holds AI signal for system ideas
         description: iv.description || "",
         tags: iv.tags || [],
+        recommendedAt: (iv.recommendedAt ?? iv.createdAt).toISOString(),
+        confidenceAtRecommendation: iv.confidenceAtRecommendation,
+        recommendationSignals: iv.recommendationSignals,
+        opportunityScoreAtRecommendation: iv.opportunityScoreAtRecommendation,
     }));
 
     return (
